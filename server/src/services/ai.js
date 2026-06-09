@@ -178,6 +178,7 @@ SCORING GUIDELINES:
       extracted: result,
     }
   } catch (err) {
+    console.error('[KYC AI] Error:', err.message, err.response?.status, err.response?.data?.error?.message || '')
     return { verified: false, reason: 'Verification service temporarily unavailable. Please try again in a moment.' }
   }
 }

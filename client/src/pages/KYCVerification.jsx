@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Camera, Upload, CheckCircle, XCircle, ArrowLeft, Shield, Loader2, RotateCcw, Zap, AlertTriangle, X } from 'lucide-react'
+import { Camera, Upload, CheckCircle, XCircle, ArrowLeft, Shield, Loader2, RotateCcw, Zap, AlertTriangle, X, Search, FileText, ShieldCheck, UserCheck } from 'lucide-react'
 import GlassCard from '../components/ui/GlassCard'
 import api from '../services/api'
 
@@ -194,6 +194,27 @@ export default function KYCVerification() {
     setStep('preview')
   }
 
+  function compressImage(dataUrl, maxWidth = 1200) {
+    return new Promise((resolve) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        let w = img.width
+        let h = img.height
+        if (w > maxWidth) {
+          h = Math.round((h * maxWidth) / w)
+          w = maxWidth
+        }
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, w, h)
+        resolve(canvas.toDataURL('image/jpeg', 0.85))
+      }
+      img.src = dataUrl
+    })
+  }
+
   async function handleVerify() {
     setStep('processing')
     setProcessingStep(0)
@@ -205,7 +226,8 @@ export default function KYCVerification() {
     ]
 
     try {
-      const { data } = await api.post('/kyc/verify', { image })
+      const compressed = await compressImage(image)
+      const { data } = await api.post('/kyc/verify', { image: compressed })
       timers.forEach(clearTimeout)
       setResult(data)
       setStep(data.verified ? 'success' : 'failed')
@@ -224,10 +246,10 @@ export default function KYCVerification() {
   }
 
   const processingSteps = [
-    { label: 'Detecting Ghana Card...', icon: '🔍' },
-    { label: 'Reading card details...', icon: '📄' },
-    { label: 'Verifying authenticity...', icon: '🛡️' },
-    { label: 'Cross-referencing profile...', icon: '✓' },
+    { label: 'Detecting Ghana Card...', Icon: Search },
+    { label: 'Reading card details...', Icon: FileText },
+    { label: 'Verifying authenticity...', Icon: ShieldCheck },
+    { label: 'Cross-referencing profile...', Icon: UserCheck },
   ]
 
   return (
@@ -364,7 +386,13 @@ export default function KYCVerification() {
                   <div key={i} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-500 ${
                     i < processingStep ? 'bg-primary/5' : i === processingStep ? 'bg-primary/10 border border-primary/20' : 'opacity-30'
                   }`}>
-                    <span className="text-lg">{i < processingStep ? '✅' : s.icon}</span>
+                    <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
+                      {i < processingStep ? (
+                        <CheckCircle size={20} className="text-accent-success" />
+                      ) : (
+                        <s.Icon size={20} className={i === processingStep ? 'text-primary' : 'text-text-dim'} />
+                      )}
+                    </div>
                     <span className={`text-sm font-medium ${i <= processingStep ? 'text-text-primary' : 'text-text-dim'}`}>
                       {s.label}
                     </span>

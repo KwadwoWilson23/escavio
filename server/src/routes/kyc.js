@@ -58,7 +58,8 @@ router.post('/verify', authenticate, async (req, res) => {
 
     res.json(result)
   } catch (err) {
-    res.status(500).json({ error: 'Verification failed' })
+    console.error('[KYC] Verification error:', err.message, err.response?.data || '')
+    res.status(500).json({ error: 'Verification failed', reason: err.message })
   }
 })
 

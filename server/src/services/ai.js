@@ -183,6 +183,98 @@ SCORING GUIDELINES:
   }
 }
 
+export async function verifyFaceMatch(cardBase64, selfieBase64, extractedName) {
+  const system = `You are Escavio's face verification AI for KYC liveness and identity confirmation.
+
+YOUR TASK:
+1. Compare the passport photo on the Ghana Card (Image 1) with the selfie (Image 2)
+2. Determine if they are the SAME PERSON
+3. Check if the selfie shows a LIVE person (not a printed photo, screen display, or mask)
+
+LIVENESS INDICATORS (real person):
+- Natural skin texture with pores and color variation
+- Realistic lighting with natural shadows on face
+- Slight natural facial asymmetry
+- Background looks like a real environment (room, wall, etc.)
+- Natural depth of field
+- No flat uniform lighting
+
+FAKE INDICATORS (reject these):
+- Moire patterns or screen pixels visible (photo of a screen)
+- Paper edges, glossy reflections, or creases (printed photo)
+- Face appears perfectly flat with no depth cues
+- Unnatural color cast from screen backlight
+- Visible frame or border around the face
+- Another phone/device screen visible holding a photo
+
+FACE COMPARISON:
+- Account for aging differences (card photo may be older)
+- Account for slight weight changes
+- Focus on bone structure: forehead shape, nose bridge, jaw line, eye spacing
+- Hair style changes are normal and should not affect matching
+- Glasses on/off is normal
+
+Return ONLY a valid JSON object:
+
+{
+  "faces_match": true or false,
+  "match_confidence": 0.0 to 1.0,
+  "is_live_person": true or false,
+  "liveness_confidence": 0.0 to 1.0,
+  "liveness_issues": [],
+  "comparison_notes": "brief explanation"
+}`
+
+  const userMessage = [
+    {
+      type: 'image_url',
+      image_url: { url: `data:image/jpeg;base64,${cardBase64}` },
+    },
+    {
+      type: 'image_url',
+      image_url: { url: `data:image/jpeg;base64,${selfieBase64}` },
+    },
+    {
+      type: 'text',
+      text: `Image 1 is the front of a Ghana Card for "${extractedName}". Image 2 is a selfie taken just now by the person claiming to own this card. Compare the face on the card with the selfie and check that the selfie is a live person.`,
+    },
+  ]
+
+  try {
+    const { data } = await openrouter.post('/chat/completions', {
+      model: 'google/gemini-2.5-flash-lite',
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: userMessage },
+      ],
+      max_tokens: 500,
+    })
+
+    const raw = data.choices[0].message.content
+    const jsonMatch = raw.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) return { passed: false, reason: 'Face verification could not be completed. Please try again.' }
+
+    const result = JSON.parse(jsonMatch[0])
+
+    const facesMatch = result.faces_match && (result.match_confidence || 0) >= 0.55
+    const isLive = result.is_live_person && (result.liveness_confidence || 0) >= 0.55
+    const passed = facesMatch && isLive
+
+    const reasons = []
+    if (!facesMatch) reasons.push('The selfie does not match the photo on your Ghana Card')
+    if (!isLive) reasons.push(`Liveness check failed: ${(result.liveness_issues || []).join(', ') || 'Could not confirm a live person'}`)
+
+    return {
+      passed,
+      reason: passed ? 'Face and liveness verified successfully' : reasons.join('. ') + '.',
+      details: result,
+    }
+  } catch (err) {
+    console.error('[KYC Face] Error:', err.message, err.response?.status, err.response?.data?.error?.message || '')
+    return { passed: false, reason: 'Face verification service temporarily unavailable. Please try again.' }
+  }
+}
+
 export async function checkRentCompliance(advanceMonths) {
   if (advanceMonths > 6) {
     return {

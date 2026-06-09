@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Camera, Upload, CheckCircle, XCircle, ArrowLeft, Shield, Loader2, RotateCcw, Zap, AlertTriangle, X, Search, FileText, ShieldCheck, UserCheck } from 'lucide-react'
+import { useAuth } from '../hooks/useAuth'
+import { Camera, Upload, CheckCircle, XCircle, ArrowLeft, Shield, Loader2, RotateCcw, Zap, AlertTriangle, X, Search, FileText, ShieldCheck, UserCheck, ScanFace } from 'lucide-react'
 import GlassCard from '../components/ui/GlassCard'
 import api from '../services/api'
 
@@ -49,12 +50,10 @@ function CameraCapture({ onCapture, onClose }) {
     const video = videoRef.current
     const canvas = canvasRef.current
     if (!video || !canvas) return
-
     canvas.width = video.videoWidth
     canvas.height = video.videoHeight
     const ctx = canvas.getContext('2d')
     ctx.drawImage(video, 0, 0)
-
     const dataUrl = canvas.toDataURL('image/jpeg', 0.92)
     streamRef.current?.getTracks().forEach(t => t.stop())
     onCapture(dataUrl)
@@ -79,10 +78,8 @@ function CameraCapture({ onCapture, onClose }) {
         <span className="text-white text-sm font-medium">Scan Ghana Card</span>
         <div className="w-6" />
       </div>
-
       <div className="flex-1 relative overflow-hidden">
         <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
-
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="relative" style={{ width: '88%', aspectRatio: CARD_ASPECT }}>
             <div className="absolute inset-0 border-2 border-white/80 rounded-2xl" />
@@ -92,7 +89,6 @@ function CameraCapture({ onCapture, onClose }) {
             <div className="absolute -bottom-0.5 -right-0.5 w-8 h-8 border-b-4 border-r-4 border-primary rounded-br-2xl" />
           </div>
         </div>
-
         <div className="absolute inset-x-0 top-4 flex justify-center">
           <div className="bg-black/60 backdrop-blur-sm rounded-full px-4 py-2">
             <p className="text-white text-xs font-medium text-center">
@@ -101,7 +97,6 @@ function CameraCapture({ onCapture, onClose }) {
           </div>
         </div>
       </div>
-
       <div className="p-6 flex flex-col items-center gap-3">
         <button
           onClick={capture}
@@ -114,7 +109,127 @@ function CameraCapture({ onCapture, onClose }) {
         </button>
         <p className="text-white/60 text-xs">Tap to capture</p>
       </div>
+      <canvas ref={canvasRef} className="hidden" />
+    </div>
+  )
+}
 
+function SelfieCapture({ onCapture, onClose }) {
+  const videoRef = useRef()
+  const canvasRef = useRef()
+  const streamRef = useRef()
+  const [ready, setReady] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    let mounted = true
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'user',
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false,
+        })
+        if (!mounted) { stream.getTracks().forEach(t => t.stop()); return }
+        streamRef.current = stream
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current.play()
+            setReady(true)
+          }
+        }
+      } catch {
+        if (mounted) setError('Front camera access denied. Please allow camera permission to complete face verification.')
+      }
+    }
+    startCamera()
+    return () => {
+      mounted = false
+      streamRef.current?.getTracks().forEach(t => t.stop())
+    }
+  }, [])
+
+  function capture() {
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    if (!video || !canvas) return
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    const ctx = canvas.getContext('2d')
+    ctx.save()
+    ctx.translate(canvas.width, 0)
+    ctx.scale(-1, 1)
+    ctx.drawImage(video, 0, 0)
+    ctx.restore()
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.92)
+    streamRef.current?.getTracks().forEach(t => t.stop())
+    onCapture(dataUrl)
+  }
+
+  if (error) {
+    return (
+      <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center p-6">
+        <AlertTriangle size={48} className="text-yellow-400 mb-4" />
+        <p className="text-white text-center mb-6">{error}</p>
+        <button onClick={onClose} className="btn-primary">Go Back</button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black flex flex-col">
+      <div className="flex items-center justify-between p-4">
+        <button onClick={() => { streamRef.current?.getTracks().forEach(t => t.stop()); onClose() }} className="text-white">
+          <X size={24} />
+        </button>
+        <span className="text-white text-sm font-medium">Face Verification</span>
+        <div className="w-6" />
+      </div>
+      <div className="flex-1 relative overflow-hidden">
+        <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="relative w-64 h-80">
+            <svg viewBox="0 0 200 250" className="w-full h-full">
+              <defs>
+                <mask id="faceMask">
+                  <rect width="200" height="250" fill="white" />
+                  <ellipse cx="100" cy="115" rx="72" ry="90" fill="black" />
+                </mask>
+              </defs>
+              <rect width="200" height="250" fill="rgba(0,0,0,0.55)" mask="url(#faceMask)" />
+              <ellipse cx="100" cy="115" rx="72" ry="90" fill="none" stroke="#2563eb" strokeWidth="3" />
+            </svg>
+          </div>
+        </div>
+        <div className="absolute inset-x-0 top-4 flex justify-center">
+          <div className="bg-black/60 backdrop-blur-sm rounded-full px-4 py-2">
+            <p className="text-white text-xs font-medium text-center">
+              {ready ? 'Position your face in the oval and look straight ahead' : 'Starting front camera...'}
+            </p>
+          </div>
+        </div>
+        <div className="absolute inset-x-0 bottom-32 flex justify-center">
+          <div className="bg-black/40 backdrop-blur-sm rounded-xl px-4 py-2 mx-6">
+            <p className="text-white/80 text-[11px] text-center">Make sure you are in a well-lit area. Do not hold up a photo or wear a mask.</p>
+          </div>
+        </div>
+      </div>
+      <div className="p-6 flex flex-col items-center gap-3">
+        <button
+          onClick={capture}
+          disabled={!ready}
+          className="w-20 h-20 rounded-full bg-white flex items-center justify-center active:scale-90 transition-transform disabled:opacity-40"
+        >
+          <div className="w-16 h-16 rounded-full border-4 border-primary flex items-center justify-center">
+            <ScanFace size={28} className="text-primary" />
+          </div>
+        </button>
+        <p className="text-white/60 text-xs">Tap to take selfie</p>
+      </div>
       <canvas ref={canvasRef} className="hidden" />
     </div>
   )
@@ -130,7 +245,6 @@ function QualityCheck({ imageData }) {
       const h = img.height
       const megapixels = (w * h) / 1000000
       const aspect = w / h
-
       setChecks({
         resolution: megapixels >= 0.3 ? 'pass' : 'fail',
         aspect: (aspect >= 1.2 && aspect <= 2.0) || (aspect >= 0.5 && aspect <= 0.85) ? 'pass' : 'warn',
@@ -139,8 +253,6 @@ function QualityCheck({ imageData }) {
     }
     img.src = imageData
   }, [imageData])
-
-  const allPass = checks.resolution !== 'fail'
 
   const items = [
     { key: 'resolution', label: 'Image quality', pass: checks.resolution === 'pass' },
@@ -164,14 +276,37 @@ function QualityCheck({ imageData }) {
   )
 }
 
+function ProgressBar({ current, total }) {
+  return (
+    <div className="flex gap-2 mb-2">
+      {Array.from({ length: total }, (_, i) => (
+        <div key={i} className={`flex-1 h-1 rounded-full transition-colors duration-300 ${i < current ? 'bg-primary' : 'bg-surface-border'}`} />
+      ))}
+    </div>
+  )
+}
+
 export default function KYCVerification() {
   const [step, setStep] = useState('intro')
-  const [image, setImage] = useState(null)
-  const [result, setResult] = useState(null)
+  const [cardImage, setCardImage] = useState(null)
+  const [selfieImage, setSelfieImage] = useState(null)
+  const [cardResult, setCardResult] = useState(null)
+  const [faceResult, setFaceResult] = useState(null)
   const [showCamera, setShowCamera] = useState(false)
+  const [showSelfie, setShowSelfie] = useState(false)
   const [processingStep, setProcessingStep] = useState(0)
+  const [failReason, setFailReason] = useState('')
   const galleryRef = useRef()
   const navigate = useNavigate()
+  const { refreshUser } = useAuth()
+
+  const progressMap = {
+    intro: 1, preview: 1,
+    processing: 2,
+    'selfie-intro': 3, 'selfie-preview': 3,
+    'face-processing': 4,
+    success: 5, failed: 0,
+  }
 
   function handleGalleryFile(e) {
     const file = e.target.files?.[0]
@@ -182,7 +317,7 @@ export default function KYCVerification() {
     }
     const reader = new FileReader()
     reader.onload = () => {
-      setImage(reader.result)
+      setCardImage(reader.result)
       setStep('preview')
     }
     reader.readAsDataURL(file)
@@ -190,8 +325,14 @@ export default function KYCVerification() {
 
   function handleCameraCapture(dataUrl) {
     setShowCamera(false)
-    setImage(dataUrl)
+    setCardImage(dataUrl)
     setStep('preview')
+  }
+
+  function handleSelfieCapture(dataUrl) {
+    setShowSelfie(false)
+    setSelfieImage(dataUrl)
+    setStep('selfie-preview')
   }
 
   function compressImage(dataUrl, maxWidth = 1200) {
@@ -215,7 +356,7 @@ export default function KYCVerification() {
     })
   }
 
-  async function handleVerify() {
+  async function handleCardVerify() {
     setStep('processing')
     setProcessingStep(0)
 
@@ -226,30 +367,87 @@ export default function KYCVerification() {
     ]
 
     try {
-      const compressed = await compressImage(image)
+      const compressed = await compressImage(cardImage)
       const { data } = await api.post('/kyc/verify', { image: compressed })
       timers.forEach(clearTimeout)
-      setResult(data)
-      setStep(data.verified ? 'success' : 'failed')
+
+      if (data.verified) {
+        setCardResult(data)
+        setStep('selfie-intro')
+      } else {
+        setFailReason(data.reason || 'Card verification failed. Please try again with a clearer photo.')
+        setCardResult(data)
+        setStep('failed')
+      }
     } catch {
       timers.forEach(clearTimeout)
-      setResult({ verified: false, reason: 'Verification service unavailable. Please check your connection and try again.' })
+      setFailReason('Verification service unavailable. Please check your connection and try again.')
+      setStep('failed')
+    }
+  }
+
+  async function handleFaceVerify() {
+    setStep('face-processing')
+    setProcessingStep(0)
+
+    const timers = [
+      setTimeout(() => setProcessingStep(1), 1500),
+      setTimeout(() => setProcessingStep(2), 3500),
+    ]
+
+    try {
+      const compressedCard = await compressImage(cardImage)
+      const compressedSelfie = await compressImage(selfieImage, 800)
+      const { data } = await api.post('/kyc/verify-face', {
+        cardImage: compressedCard,
+        selfie: compressedSelfie,
+      })
+      timers.forEach(clearTimeout)
+
+      if (data.passed) {
+        setFaceResult(data)
+        await refreshUser()
+        setStep('success')
+      } else {
+        setFailReason(data.reason || 'Face verification failed. Please try again.')
+        setFaceResult(data)
+        setStep('failed')
+      }
+    } catch {
+      timers.forEach(clearTimeout)
+      setFailReason('Face verification service unavailable. Please try again.')
       setStep('failed')
     }
   }
 
   function handleRetry() {
-    setImage(null)
-    setResult(null)
+    setCardImage(null)
+    setSelfieImage(null)
+    setCardResult(null)
+    setFaceResult(null)
+    setFailReason('')
     setStep('intro')
     setProcessingStep(0)
   }
 
-  const processingSteps = [
+  function handleRetakeSelfie() {
+    setSelfieImage(null)
+    setFaceResult(null)
+    setFailReason('')
+    setStep('selfie-intro')
+  }
+
+  const cardSteps = [
     { label: 'Detecting Ghana Card...', Icon: Search },
     { label: 'Reading card details...', Icon: FileText },
     { label: 'Verifying authenticity...', Icon: ShieldCheck },
     { label: 'Cross-referencing profile...', Icon: UserCheck },
+  ]
+
+  const faceSteps = [
+    { label: 'Comparing faces...', Icon: ScanFace },
+    { label: 'Checking liveness...', Icon: ShieldCheck },
+    { label: 'Confirming identity...', Icon: UserCheck },
   ]
 
   return (
@@ -261,6 +459,13 @@ export default function KYCVerification() {
         />
       )}
 
+      {showSelfie && (
+        <SelfieCapture
+          onCapture={handleSelfieCapture}
+          onClose={() => setShowSelfie(false)}
+        />
+      )}
+
       <div className="space-y-6">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate(-1)} className="text-primary">
@@ -269,21 +474,17 @@ export default function KYCVerification() {
           <h1 className="text-xl font-bold">Identity Verification</h1>
         </div>
 
+        {step !== 'failed' && <ProgressBar current={progressMap[step] || 0} total={5} />}
+
         {step === 'intro' && (
           <>
-            <div className="flex gap-2 mb-2">
-              {[1, 2, 3].map(n => (
-                <div key={n} className={`flex-1 h-1 rounded-full ${n === 1 ? 'bg-primary' : 'bg-surface-border'}`} />
-              ))}
-            </div>
-
             <GlassCard className="text-center py-6">
               <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-4">
                 <Shield size={32} className="text-primary" />
               </div>
-              <h2 className="text-lg font-bold">Verify with Ghana Card</h2>
+              <h2 className="text-lg font-bold">Step 1: Ghana Card</h2>
               <p className="text-sm text-text-muted mt-2 max-w-xs mx-auto">
-                Take a photo or upload an image of the <strong>front side</strong> of your Ghana Card. Our AI verifies your identity in seconds.
+                Take a photo or upload an image of the <strong>front side</strong> of your Ghana Card. Our AI verifies your card in seconds.
               </p>
             </GlassCard>
 
@@ -332,17 +533,11 @@ export default function KYCVerification() {
 
         {step === 'preview' && (
           <>
-            <div className="flex gap-2 mb-2">
-              {[1, 2, 3].map(n => (
-                <div key={n} className={`flex-1 h-1 rounded-full ${n <= 2 ? 'bg-primary' : 'bg-surface-border'}`} />
-              ))}
-            </div>
-
             <GlassCard className="overflow-hidden p-0">
-              <img src={image} alt="Ghana Card" className="w-full rounded-xl" />
+              <img src={cardImage} alt="Ghana Card" className="w-full rounded-xl" />
             </GlassCard>
 
-            {image && <QualityCheck imageData={image} />}
+            {cardImage && <QualityCheck imageData={cardImage} />}
 
             <GlassCard className="flex items-start gap-3">
               <AlertTriangle size={18} className="text-accent-warning flex-shrink-0 mt-0.5" />
@@ -360,49 +555,87 @@ export default function KYCVerification() {
               <button onClick={handleRetry} className="flex-1 bg-surface-card border border-surface-border text-text-muted font-semibold py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-all">
                 <RotateCcw size={16} /> Retake
               </button>
-              <button onClick={handleVerify} className="btn-primary flex-1 flex items-center justify-center gap-2 py-3.5">
-                <Zap size={16} /> Verify
+              <button onClick={handleCardVerify} className="btn-primary flex-1 flex items-center justify-center gap-2 py-3.5">
+                <Zap size={16} /> Verify Card
               </button>
             </div>
           </>
         )}
 
         {step === 'processing' && (
+          <ProcessingView steps={cardSteps} current={processingStep} message="Analyzing your Ghana Card..." />
+        )}
+
+        {step === 'selfie-intro' && (
           <>
-            <div className="flex gap-2 mb-2">
-              {[1, 2, 3].map(n => (
-                <div key={n} className="flex-1 h-1 rounded-full bg-primary" />
-              ))}
-            </div>
+            <GlassCard glow="success" className="text-center py-4">
+              <CheckCircle size={32} className="text-accent-success mx-auto mb-2" />
+              <h3 className="font-bold text-accent-success">Ghana Card Verified</h3>
+              {cardResult?.extracted?.full_name && (
+                <p className="text-sm text-text-muted mt-1">{cardResult.extracted.full_name}</p>
+              )}
+            </GlassCard>
 
-            <div className="flex flex-col items-center justify-center py-8 space-y-8">
-              <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center relative">
-                <Loader2 size={48} className="text-primary animate-spin" />
-                <div className="absolute inset-0 rounded-full border-4 border-primary/20 border-t-primary animate-spin" style={{ animationDuration: '1.5s' }} />
+            <GlassCard className="text-center py-6">
+              <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-4">
+                <ScanFace size={32} className="text-primary" />
               </div>
+              <h2 className="text-lg font-bold">Step 2: Face Verification</h2>
+              <p className="text-sm text-text-muted mt-2 max-w-xs mx-auto">
+                Take a selfie to confirm you are the person on the Ghana Card. This also verifies you are a real person.
+              </p>
+            </GlassCard>
 
-              <div className="w-full space-y-3">
-                {processingSteps.map((s, i) => (
-                  <div key={i} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-500 ${
-                    i < processingStep ? 'bg-primary/5' : i === processingStep ? 'bg-primary/10 border border-primary/20' : 'opacity-30'
-                  }`}>
-                    <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
-                      {i < processingStep ? (
-                        <CheckCircle size={20} className="text-accent-success" />
-                      ) : (
-                        <s.Icon size={20} className={i === processingStep ? 'text-primary' : 'text-text-dim'} />
-                      )}
-                    </div>
-                    <span className={`text-sm font-medium ${i <= processingStep ? 'text-text-primary' : 'text-text-dim'}`}>
-                      {s.label}
-                    </span>
-                  </div>
-                ))}
+            <GlassCard className="space-y-2">
+              <h3 className="text-sm font-semibold">For best results:</h3>
+              <div className="grid grid-cols-1 gap-1.5 text-xs text-text-muted">
+                <div className="flex items-center gap-2"><CheckCircle size={12} className="text-accent-success flex-shrink-0" /> Face a window or lamp for good lighting</div>
+                <div className="flex items-center gap-2"><CheckCircle size={12} className="text-accent-success flex-shrink-0" /> Remove sunglasses or face coverings</div>
+                <div className="flex items-center gap-2"><CheckCircle size={12} className="text-accent-success flex-shrink-0" /> Look straight at the camera</div>
+                <div className="flex items-center gap-2"><XCircle size={12} className="text-accent-danger flex-shrink-0" /> Do not hold up a photo or screen</div>
               </div>
+            </GlassCard>
 
-              <p className="text-xs text-text-dim text-center">This usually takes 5-10 seconds</p>
+            <button
+              onClick={() => setShowSelfie(true)}
+              className="btn-primary w-full flex items-center justify-center gap-2 py-4"
+            >
+              <ScanFace size={20} /> Take Selfie
+            </button>
+          </>
+        )}
+
+        {step === 'selfie-preview' && (
+          <>
+            <GlassCard className="overflow-hidden p-0">
+              <img src={selfieImage} alt="Selfie" className="w-full rounded-xl" />
+            </GlassCard>
+
+            <GlassCard className="flex items-start gap-3">
+              <ScanFace size={18} className="text-primary flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium">Check your selfie</p>
+                <ul className="text-xs text-text-muted mt-1 space-y-0.5">
+                  <li>Your full face is clearly visible</li>
+                  <li>Good lighting with no heavy shadows</li>
+                  <li>Looking straight at the camera</li>
+                </ul>
+              </div>
+            </GlassCard>
+
+            <div className="flex gap-3">
+              <button onClick={handleRetakeSelfie} className="flex-1 bg-surface-card border border-surface-border text-text-muted font-semibold py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-all">
+                <RotateCcw size={16} /> Retake
+              </button>
+              <button onClick={handleFaceVerify} className="btn-primary flex-1 flex items-center justify-center gap-2 py-3.5">
+                <Zap size={16} /> Verify Face
+              </button>
             </div>
           </>
+        )}
+
+        {step === 'face-processing' && (
+          <ProcessingView steps={faceSteps} current={processingStep} message="Verifying your identity..." />
         )}
 
         {step === 'success' && (
@@ -411,45 +644,56 @@ export default function KYCVerification() {
               <CheckCircle size={56} className="text-accent-success" />
             </div>
             <div className="text-center">
-              <h2 className="text-xl font-bold">Verified!</h2>
-              <p className="text-sm text-text-muted mt-2">Your identity has been confirmed successfully.</p>
+              <h2 className="text-xl font-bold">Fully Verified!</h2>
+              <p className="text-sm text-text-muted mt-2">Your identity and liveness have been confirmed successfully.</p>
             </div>
 
-            {result?.extracted && (
+            {cardResult?.extracted && (
               <GlassCard className="w-full" glow="primary">
                 <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-4">Verified Details</h3>
                 <div className="space-y-3">
-                  {result.extracted.full_name && (
+                  {cardResult.extracted.full_name && (
                     <div className="flex justify-between text-sm">
                       <span className="text-text-muted">Full Name</span>
-                      <span className="font-semibold">{result.extracted.full_name}</span>
+                      <span className="font-semibold">{cardResult.extracted.full_name}</span>
                     </div>
                   )}
-                  {result.extracted.card_number && (
+                  {cardResult.extracted.card_number && (
                     <div className="flex justify-between text-sm">
                       <span className="text-text-muted">Card Number</span>
-                      <span className="font-mono font-semibold">{result.extracted.card_number}</span>
+                      <span className="font-mono font-semibold">{cardResult.extracted.card_number}</span>
                     </div>
                   )}
-                  {result.extracted.date_of_birth && (
+                  {cardResult.extracted.date_of_birth && (
                     <div className="flex justify-between text-sm">
                       <span className="text-text-muted">Date of Birth</span>
-                      <span className="font-medium">{result.extracted.date_of_birth}</span>
+                      <span className="font-medium">{cardResult.extracted.date_of_birth}</span>
                     </div>
                   )}
-                  {result.extracted.gender && (
+                  {cardResult.extracted.gender && (
                     <div className="flex justify-between text-sm">
                       <span className="text-text-muted">Gender</span>
-                      <span className="font-medium">{result.extracted.gender === 'M' ? 'Male' : 'Female'}</span>
+                      <span className="font-medium">{cardResult.extracted.gender === 'M' ? 'Male' : 'Female'}</span>
                     </div>
                   )}
                 </div>
               </GlassCard>
             )}
 
+            <div className="w-full grid grid-cols-2 gap-3">
+              <GlassCard className="text-center py-3" glow="success">
+                <Shield size={20} className="text-accent-success mx-auto mb-1" />
+                <p className="text-[10px] font-semibold text-accent-success">Card Verified</p>
+              </GlassCard>
+              <GlassCard className="text-center py-3" glow="success">
+                <ScanFace size={20} className="text-accent-success mx-auto mb-1" />
+                <p className="text-[10px] font-semibold text-accent-success">Face Matched</p>
+              </GlassCard>
+            </div>
+
             <GlassCard className="w-full flex items-center gap-3">
               <Shield size={20} className="text-primary flex-shrink-0" />
-              <p className="text-xs text-text-muted">Your Ghana Card image was processed in real-time and not stored. Only the verification result is saved.</p>
+              <p className="text-xs text-text-muted">Your images were processed in real-time and not stored. Only the verification result is saved.</p>
             </GlassCard>
 
             <button onClick={() => navigate('/profile')} className="btn-primary w-full">
@@ -465,14 +709,14 @@ export default function KYCVerification() {
             </div>
             <div className="text-center">
               <h2 className="text-xl font-bold">Verification Failed</h2>
-              <p className="text-sm text-text-muted mt-2 max-w-xs">{result?.reason || 'Please try again with a clearer photo.'}</p>
+              <p className="text-sm text-text-muted mt-2 max-w-xs">{failReason}</p>
             </div>
 
-            {result?.extracted?.issues?.length > 0 && (
+            {(cardResult?.extracted?.issues?.length > 0 || faceResult?.details?.liveness_issues?.length > 0) && (
               <GlassCard className="w-full">
                 <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Issues Found</h3>
                 <ul className="space-y-2">
-                  {result.extracted.issues.map((issue, i) => (
+                  {[...(cardResult?.extracted?.issues || []), ...(faceResult?.details?.liveness_issues || [])].map((issue, i) => (
                     <li key={i} className="flex items-start gap-2 text-sm text-text-muted">
                       <XCircle size={14} className="text-accent-danger flex-shrink-0 mt-0.5" />
                       {issue}
@@ -483,19 +727,19 @@ export default function KYCVerification() {
             )}
 
             <GlassCard className="w-full space-y-2">
-              <h3 className="text-sm font-semibold">Common reasons for failure:</h3>
+              <h3 className="text-sm font-semibold">Tips for a successful verification:</h3>
               <ul className="text-xs text-text-muted space-y-1">
-                <li>Blurry or low-resolution image</li>
-                <li>Glare covering card text or photo</li>
-                <li>Card partially cut off in the frame</li>
-                <li>Name on card doesn't match your profile</li>
-                <li>Image is not a Ghana Card</li>
+                <li>Use good lighting with no shadows on your face</li>
+                <li>Make sure the Ghana Card photo is clear and sharp</li>
+                <li>Look directly at the camera for the selfie</li>
+                <li>Do not use a photo of a photo or a screenshot</li>
+                <li>Remove sunglasses and face coverings</li>
               </ul>
             </GlassCard>
 
             <div className="w-full space-y-3">
               <button onClick={handleRetry} className="btn-primary w-full flex items-center justify-center gap-2">
-                <RotateCcw size={16} /> Try Again
+                <RotateCcw size={16} /> Start Over
               </button>
               <button onClick={() => navigate('/profile')} className="bg-surface-card border border-surface-border text-text-muted font-semibold py-3 rounded-full w-full active:scale-95 transition-all">
                 Back to Profile
@@ -505,5 +749,37 @@ export default function KYCVerification() {
         )}
       </div>
     </>
+  )
+}
+
+function ProcessingView({ steps, current, message }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-8 space-y-8">
+      <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center relative">
+        <Loader2 size={48} className="text-primary animate-spin" />
+        <div className="absolute inset-0 rounded-full border-4 border-primary/20 border-t-primary animate-spin" style={{ animationDuration: '1.5s' }} />
+      </div>
+
+      <div className="w-full space-y-3">
+        {steps.map((s, i) => (
+          <div key={i} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-500 ${
+            i < current ? 'bg-primary/5' : i === current ? 'bg-primary/10 border border-primary/20' : 'opacity-30'
+          }`}>
+            <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
+              {i < current ? (
+                <CheckCircle size={20} className="text-accent-success" />
+              ) : (
+                <s.Icon size={20} className={i === current ? 'text-primary' : 'text-text-dim'} />
+              )}
+            </div>
+            <span className={`text-sm font-medium ${i <= current ? 'text-text-primary' : 'text-text-dim'}`}>
+              {s.label}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <p className="text-xs text-text-dim text-center">{message}</p>
+    </div>
   )
 }

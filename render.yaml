@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: escavio-api
+    runtime: node
+    region: frankfurt
+    buildCommand: cd server && npm install
+    startCommand: cd server && node src/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: MOOLRE_API_USER
+        sync: false
+      - key: MOOLRE_API_KEY
+        sync: false
+      - key: MOOLRE_API_PUBKEY
+        sync: false
+      - key: MOOLRE_API_VASKEY
+        sync: false
+      - key: MOOLRE_WEBHOOK_SECRET
+        sync: false
+      - key: WHATSAPP_BUSINESS_NUMBER
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: APP_BASE_URL
+        sync: false

@@ -4,6 +4,7 @@ import DashboardLayout from './components/layout/DashboardLayout'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import CompleteProfile from './pages/CompleteProfile'
 import TenantDashboard from './pages/tenant/Dashboard'
 import PayRent from './pages/tenant/PayRent'
 import PaymentSuccess from './pages/tenant/PaymentSuccess'
@@ -22,6 +23,14 @@ import AgentChat from './pages/AgentChat'
 import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
 
+function NeedsPhone({ children }) {
+  const { user } = useAuth()
+  if (user && user.phone?.startsWith('google_')) {
+    return <Navigate to="/complete-profile" replace />
+  }
+  return children
+}
+
 function DashboardHome() {
   const { user } = useAuth()
   if (user?.role === 'landlord') return <LandlordDashboard />
@@ -34,10 +43,11 @@ export default function App() {
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/complete-profile" element={<CompleteProfile />} />
       <Route path="/terms" element={<Terms />} />
       <Route path="/privacy" element={<Privacy />} />
 
-      <Route element={<DashboardLayout />}>
+      <Route element={<NeedsPhone><DashboardLayout /></NeedsPhone>}>
         <Route path="/dashboard" element={<DashboardHome />} />
         <Route path="/dashboard/pay" element={<PayRent />} />
         <Route path="/dashboard/payment-success" element={<PaymentSuccess />} />

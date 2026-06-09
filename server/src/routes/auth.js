@@ -137,6 +137,55 @@ router.patch('/password', authenticate, async (req, res) => {
   }
 })
 
+router.patch('/complete-profile', authenticate, async (req, res) => {
+  try {
+    const { phone, role } = req.body
+
+    if (!phone || !role) {
+      return res.status(400).json({ error: 'Phone number and role are required' })
+    }
+
+    if (!['landlord', 'tenant'].includes(role)) {
+      return res.status(400).json({ error: 'Role must be landlord or tenant' })
+    }
+
+    const cleaned = phone.replace(/\D/g, '')
+    let normalized = cleaned
+    if (cleaned.startsWith('0') && cleaned.length === 10) normalized = '233' + cleaned.slice(1)
+    else if (cleaned.length === 9) normalized = '233' + cleaned
+    else if (!cleaned.startsWith('233')) normalized = cleaned
+
+    const { data: existing } = await supabase
+      .from('users')
+      .select('id')
+      .eq('phone', normalized)
+      .neq('id', req.user.id)
+      .single()
+
+    if (existing) {
+      return res.status(409).json({ error: 'This phone number is already registered to another account' })
+    }
+
+    const { error } = await supabase
+      .from('users')
+      .update({ phone: normalized, role })
+      .eq('id', req.user.id)
+
+    if (error) throw error
+
+    const { data: updated } = await supabase
+      .from('users')
+      .select('id, full_name, phone, email, role, ghana_card_number, is_verified, created_at')
+      .eq('id', req.user.id)
+      .single()
+
+    res.json(updated)
+  } catch (err) {
+    console.error('[Auth] Complete profile error:', err.message)
+    res.status(500).json({ error: 'Failed to update profile' })
+  }
+})
+
 router.post('/google', async (req, res) => {
   try {
     const { credential } = req.body

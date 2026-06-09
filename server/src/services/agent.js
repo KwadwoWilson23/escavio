@@ -144,7 +144,7 @@ export async function handleIncomingMessage(phone, messageText) {
 
   try {
     const { data } = await openrouter.post('/chat/completions', {
-      model: 'google/gemini-2.0-flash-001',
+      model: 'google/gemini-2.5-flash-lite',
       messages,
       max_tokens: 300,
     })

@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    overflow-x: hidden;
+    background-color: #ffffff;
+    color: #0f172a;
+  }
+  input, select, textarea {
+    @apply bg-white border border-surface-border rounded-xl px-4 py-3 text-text-primary placeholder-text-dim outline-none transition-all duration-200 focus:border-primary focus:ring-2 focus:ring-primary/20;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-surface-card border border-surface-border rounded-2xl shadow-sm;
+  }
+  .primary-glow {
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25);
+  }
+  .btn-primary {
+    @apply bg-primary text-white font-semibold py-3.5 px-6 rounded-full active:scale-95 transition-all duration-200 primary-glow;
+  }
+  .btn-secondary {
+    @apply border-2 border-primary text-primary font-semibold py-3.5 px-6 rounded-full active:scale-95 transition-all duration-200;
+  }
+  .btn-ghost {
+    @apply border border-surface-border text-text-muted font-medium py-3 px-5 rounded-full active:scale-95 transition-all duration-200 hover:border-text-muted;
+  }
+}

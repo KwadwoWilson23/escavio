@@ -1,5 +1,6 @@
 import axios from 'axios'
 import env from '../config/env.js'
+import { normalizePhone } from './moolre.js'
 
 const client = axios.create({
   baseURL: env.moolre.baseUrl || 'https://api.moolre.com',
@@ -10,12 +11,13 @@ const client = axios.create({
 })
 
 export async function sendTemplate({ phone, template, language, placeholders, ref }) {
+  const norm = normalizePhone(phone)
   const { data } = await client.post('/open/whatsapp/send', {
     template_name: template,
     language: language || 'English (en)',
     messages: [
       {
-        recipient: phone,
+        recipient: norm,
         ref: ref || `wa-${Date.now()}`,
         placeholders: placeholders || [],
       },

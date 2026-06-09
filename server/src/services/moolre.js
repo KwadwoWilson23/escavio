@@ -32,61 +32,108 @@ const smsClient = axios.create({
   },
 })
 
-function detectPaymentChannel(phone) {
-  const cleaned = phone.replace(/\D/g, '')
-  const prefix = cleaned.startsWith('233') ? cleaned.slice(3, 5) : cleaned.slice(1, 3)
-  if (['24', '25', '53', '54', '55', '59'].includes(prefix)) return 'MTN'
-  if (['20', '50'].includes(prefix)) return 'Telecel'
-  if (['26', '27', '56', '57'].includes(prefix)) return 'AT'
-  return 'MTN'
+export function normalizePhone(phone) {
+  if (!phone) return ''
+  const digits = phone.replace(/\D/g, '')
+  if (digits.startsWith('233') && digits.length === 12) return digits
+  if (digits.startsWith('0') && digits.length === 10) return '233' + digits.slice(1)
+  if (digits.length === 9) return '233' + digits
+  return digits
 }
 
-function detectTransferChannel(phone) {
-  const cleaned = phone.replace(/\D/g, '')
-  const prefix = cleaned.startsWith('233') ? cleaned.slice(3, 5) : cleaned.slice(1, 3)
-  if (['24', '25', '53', '54', '55', '59'].includes(prefix)) return 1
-  if (['20', '50'].includes(prefix)) return 6
-  if (['26', '27', '56', '57'].includes(prefix)) return 7
-  return 1
+function detectChannel(phone) {
+  const norm = normalizePhone(phone)
+  const prefix = norm.slice(3, 5)
+  if (['24', '25', '53', '54', '55', '59'].includes(prefix)) return { name: 'MTN', code: 1 }
+  if (['20', '50'].includes(prefix)) return { name: 'Telecel', code: 6 }
+  if (['26', '27', '56', '57'].includes(prefix)) return { name: 'AT', code: 7 }
+  return { name: 'MTN', code: 1 }
 }
 
-export async function collectPayment({ amount, phone, reference }) {
-  const { data } = await paymentClient.post('/open/transact/payment', {
+export async function collectPayment({ amount, phone, reference, callbackUrl }) {
+  const norm = normalizePhone(phone)
+  const channel = detectChannel(norm)
+
+  console.log(`[Moolre] Collection: GHS ${amount} from ${norm} via ${channel.name} (${channel.code}), ref: ${reference}`)
+
+  const payload = {
     type: 1,
-    channel: detectPaymentChannel(phone),
+    channel: channel.code,
     currency: 'GHS',
-    payer: phone,
+    payer: norm,
     amount: String(amount),
     externalref: reference,
-  })
-  return data
+  }
+
+  if (callbackUrl) {
+    payload.callbackurl = callbackUrl
+  }
+
+  try {
+    const { data } = await paymentClient.post('/open/transact/payment', payload)
+    console.log(`[Moolre] Collection response:`, JSON.stringify(data))
+    return data
+  } catch (err) {
+    console.error(`[Moolre] Collection failed:`, err.response?.status, err.response?.data || err.message)
+    throw err
+  }
 }
 
 export async function disbursePayment({ amount, phone, reference }) {
-  const { data } = await transferClient.post('/open/transact/transfer', {
-    type: 1,
-    channel: detectTransferChannel(phone),
-    currency: 'GHS',
-    amount: String(amount),
-    receiver: phone,
-  })
-  return data
+  const norm = normalizePhone(phone)
+  const channel = detectChannel(norm)
+
+  console.log(`[Moolre] Transfer: GHS ${amount} to ${norm} via ${channel.name} (${channel.code}), ref: ${reference}`)
+
+  try {
+    const { data } = await transferClient.post('/open/transact/transfer', {
+      type: 1,
+      channel: channel.code,
+      currency: 'GHS',
+      amount: String(amount),
+      receiver: norm,
+    })
+    console.log(`[Moolre] Transfer response:`, JSON.stringify(data))
+    return data
+  } catch (err) {
+    console.error(`[Moolre] Transfer failed:`, err.response?.status, err.response?.data || err.message)
+    throw err
+  }
+}
+
+export async function checkTransactionStatus(reference) {
+  try {
+    const { data } = await paymentClient.get(`/open/transact/status/${reference}`)
+    return data
+  } catch (err) {
+    console.error(`[Moolre] Status check failed:`, err.response?.status, err.response?.data || err.message)
+    return null
+  }
 }
 
 export async function sendSMS({ phone, message }) {
-  const { data } = await smsClient.post('/open/sms/send', {
-    type: 1,
-    senderid: 'Escavio',
-    messages: [
-      { recipient: phone, message },
-    ],
-  })
-  return data
+  const norm = normalizePhone(phone)
+
+  try {
+    const { data } = await smsClient.post('/open/sms/send', {
+      type: 1,
+      senderid: 'Escavio',
+      messages: [
+        { recipient: norm, message },
+      ],
+    })
+    console.log(`[Moolre] SMS sent to ${norm}:`, data?.code || data?.status)
+    return data
+  } catch (err) {
+    console.error(`[Moolre] SMS failed:`, err.response?.status, err.response?.data || err.message)
+    throw err
+  }
 }
 
 export function verifyWebhookSignature(payload, signature) {
+  if (!env.moolre.webhookSecret || !signature) return false
   const expected = crypto
-    .createHmac('sha256', env.moolre.webhookSecret || '')
+    .createHmac('sha256', env.moolre.webhookSecret)
     .update(JSON.stringify(payload))
     .digest('hex')
   return expected === signature

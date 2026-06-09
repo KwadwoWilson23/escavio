@@ -10,7 +10,10 @@ export async function processDisbursement(lease) {
     .eq('id', landlord_id)
     .single()
 
-  if (!landlord) return null
+  if (!landlord?.phone) {
+    console.error('[Disbursement] No landlord phone for lease:', lease.id)
+    return null
+  }
 
   let shouldDisburse = false
   let disburseAmount = 0
@@ -47,8 +50,10 @@ export async function processDisbursement(lease) {
 
   const reference = `DSB-${lease.id.slice(0, 8)}-${Date.now()}`
 
+  console.log(`[Disbursement] Processing GHS ${disburseAmount} to ${landlord.phone} for lease ${lease.id}, mode: ${payout_mode}`)
+
   try {
-    await disbursePayment({
+    const moolreResult = await disbursePayment({
       amount: disburseAmount,
       phone: landlord.phone,
       reference,
@@ -81,13 +86,30 @@ export async function processDisbursement(lease) {
       .update(update)
       .eq('id', lease.id)
 
-    await sendSMS({
+    sendSMS({
       phone: landlord.phone,
       message: `Escavio: GHS ${disburseAmount.toFixed(2)} has been sent to your wallet for ${lease.properties?.address || 'your property'}. Ref: ${reference}`,
+    }).catch(err => {
+      console.error('[Disbursement] SMS notification failed:', err.message)
     })
 
-    return { reference, amount: disburseAmount }
+    console.log(`[Disbursement] Success: GHS ${disburseAmount} to ${landlord.full_name}, ref: ${reference}`)
+    return { reference, amount: disburseAmount, moolre: moolreResult }
   } catch (err) {
+    console.error('[Disbursement] Failed:', err.response?.status, err.response?.data || err.message)
+
+    await supabase
+      .from('payments')
+      .insert({
+        lease_id: lease.id,
+        payer_id: null,
+        recipient_id: landlord_id,
+        amount: disburseAmount,
+        moolre_reference: reference,
+        type: 'landlord_disbursement',
+        status: 'failed',
+      })
+
     return null
   }
 }

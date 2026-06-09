@@ -11,7 +11,7 @@ const openrouter = axios.create({
 
 async function chat(systemPrompt, userMessage) {
   const { data } = await openrouter.post('/chat/completions', {
-    model: 'anthropic/claude-sonnet-4-20250514',
+    model: 'anthropic/claude-opus-4.6-fast',
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userMessage },
@@ -122,7 +122,7 @@ SCORING GUIDELINES:
 
   try {
     const { data } = await openrouter.post('/chat/completions', {
-      model: 'anthropic/claude-sonnet-4-20250514',
+      model: 'anthropic/claude-opus-4.6-fast',
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: userMessage },

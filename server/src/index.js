@@ -40,47 +40,6 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', service: 'Escavio API', agent: 'Ama v1.0', timestamp: new Date().toISOString() })
 })
 
-app.get('/api/debug/ai-test', async (req, res) => {
-  const axios = (await import('axios')).default
-  try {
-    const { data } = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
-      model: 'anthropic/claude-sonnet-4-20250514',
-      messages: [{ role: 'user', content: 'Say hello in one word' }],
-      max_tokens: 10,
-    }, {
-      headers: {
-        'Authorization': `Bearer ${env.openrouterKey}`,
-        'Content-Type': 'application/json',
-      },
-    })
-    res.json({ success: true, reply: data.choices?.[0]?.message?.content, model: data.model })
-  } catch (err) {
-    res.json({
-      success: false,
-      status: err.response?.status,
-      error: err.response?.data || err.message,
-    })
-  }
-})
-
-app.get('/api/debug/env', (req, res) => {
-  res.json({
-    hasSupabaseUrl: !!env.supabaseUrl,
-    hasSupabaseKey: !!env.supabaseServiceKey,
-    hasJwt: !!env.jwtSecret,
-    hasOpenRouter: !!env.openrouterKey,
-    openRouterKeyPrefix: env.openrouterKey ? env.openrouterKey.slice(0, 10) + '...' : 'NOT SET',
-    hasMoolreKey: !!env.moolre?.apiKey,
-    hasGoogleId: !!env.googleClientId,
-    clientUrl: process.env.CLIENT_URL || 'NOT SET',
-    cors: [
-      'http://localhost:3000',
-      'http://localhost:5173',
-      process.env.CLIENT_URL,
-    ].filter(Boolean),
-  })
-})
-
 app.listen(env.port, () => {
   console.log(`Escavio server running on port ${env.port}`)
   startReminderSchedule()

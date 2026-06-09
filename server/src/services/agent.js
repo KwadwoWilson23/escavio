@@ -144,7 +144,7 @@ export async function handleIncomingMessage(phone, messageText) {
 
   try {
     const { data } = await openrouter.post('/chat/completions', {
-      model: 'anthropic/claude-sonnet-4-20250514',
+      model: 'anthropic/claude-opus-4.6-fast',
       messages,
       max_tokens: 300,
     })

@@ -275,6 +275,116 @@ Return ONLY a valid JSON object:
   }
 }
 
+export async function verifyPropertyDocument(imageBase64, docType, propertyInfo) {
+  const docDescriptions = {
+    land_title: 'Land Title Certificate issued by the Lands Commission of Ghana',
+    indenture: 'Indenture (deed of conveyance) for property in Ghana',
+    site_plan: 'Site Plan showing the plot boundaries and survey details',
+    property_tax: 'Property tax receipt or assessment from the Metropolitan/Municipal Assembly',
+    building_permit: 'Building/Development Permit from the local assembly',
+    lease_agreement: 'Lease agreement or tenancy contract',
+  }
+
+  const docDesc = docDescriptions[docType] || 'Property ownership or authorization document'
+
+  const system = `You are Escavio's property document verification AI for the Ghanaian real estate market.
+
+DOCUMENT TYPE EXPECTED: ${docDesc}
+
+YOUR TASK:
+1. Determine if the image shows a valid ${docDesc}
+2. Extract key information from the document
+3. Assess document quality and authenticity
+4. Check for signs of tampering or forgery
+
+GHANA PROPERTY DOCUMENTS:
+- Land Title Certificate: Issued by Lands Commission, contains plot number, registration number, owner name, location details, official stamps and signatures
+- Indenture: Legal document transferring land ownership, contains grantor/grantee names, land description, consideration amount, witness signatures, commissioner for oaths stamp
+- Site Plan: Contains survey details, plot dimensions, coordinates, surveyor's stamp, scale information
+- Property Tax Receipt: Contains assessment number, property ID, owner name, assessment amount, payment period, assembly stamp
+- Building Permit: Contains permit number, building plans reference, owner name, plot details, approval stamps
+
+Return ONLY a valid JSON object:
+
+{
+  "document_detected": true or false,
+  "document_type_match": true or false,
+  "detected_type": "what type of document this appears to be",
+  "owner_name": "extracted owner/grantee name or null",
+  "property_location": "extracted property location or null",
+  "plot_number": "extracted plot/parcel number or null",
+  "registration_number": "extracted registration number or null",
+  "date_issued": "extracted date or null",
+  "has_official_stamp": true or false,
+  "has_signatures": true or false,
+  "image_quality": "good" or "acceptable" or "poor",
+  "authenticity_score": 0.0 to 1.0,
+  "confidence": 0.0 to 1.0,
+  "issues": ["list of concerns"],
+  "extracted_details": "brief summary of all readable information"
+}`
+
+  const userMessage = [
+    {
+      type: 'image_url',
+      image_url: { url: `data:image/jpeg;base64,${imageBase64}` },
+    },
+    {
+      type: 'text',
+      text: `Verify this property document. Expected type: ${docDesc}. Property address: "${propertyInfo?.address || 'Not provided'}". Region: "${propertyInfo?.region || 'Not provided'}". Extract all readable information and assess authenticity.`,
+    },
+  ]
+
+  try {
+    const { data } = await openrouter.post('/chat/completions', {
+      model: 'google/gemini-2.5-flash-lite',
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: userMessage },
+      ],
+      max_tokens: 800,
+    })
+
+    const raw = data.choices[0].message.content
+    const jsonMatch = raw.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) return { verified: false, reason: 'AI could not process the document. Please try with a clearer photo.' }
+
+    const result = JSON.parse(jsonMatch[0])
+
+    if (!result.document_detected) {
+      return { verified: false, reason: 'No document detected in the image. Please upload a clear photo of your property document.', extracted: result }
+    }
+
+    if (result.image_quality === 'poor') {
+      return { verified: false, reason: `Image quality is too low. Please retake the photo with better lighting and ensure the entire document is visible.`, extracted: result }
+    }
+
+    const authenticityOk = (result.authenticity_score || 0) >= 0.55
+    const hasStamp = result.has_official_stamp
+    const hasSigs = result.has_signatures
+    const confidenceOk = (result.confidence || 0) >= 0.5
+
+    const verified = authenticityOk && confidenceOk && (hasStamp || hasSigs)
+
+    const reasons = []
+    if (!authenticityOk) reasons.push('Document authenticity could not be confirmed')
+    if (!hasStamp && !hasSigs) reasons.push('No official stamps or signatures detected')
+    if (!confidenceOk) reasons.push('Image is too unclear to read document details')
+    if (!result.document_type_match) reasons.push(`Document appears to be a ${result.detected_type || 'different type'} instead of ${docType.replace(/_/g, ' ')}`)
+
+    return {
+      verified,
+      reason: verified
+        ? 'Property document verified successfully'
+        : reasons.join('. ') + '.',
+      extracted: result,
+    }
+  } catch (err) {
+    console.error('[Doc AI] Error:', err.message, err.response?.status, err.response?.data?.error?.message || '')
+    return { verified: false, reason: 'Document verification service temporarily unavailable. Please try again.' }
+  }
+}
+
 export async function checkRentCompliance(advanceMonths) {
   if (advanceMonths > 6) {
     return {

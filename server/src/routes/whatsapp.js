@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { handleIncomingMessage } from '../services/agent.js'
 import { sendSMS } from '../services/moolre.js'
+import { sendMessage as sendWhatsApp } from '../services/whatsapp.js'
 import { supabase } from '../config/supabase.js'
 import { authenticate } from '../middleware/auth.js'
 import env from '../config/env.js'
@@ -24,8 +25,19 @@ router.post('/incoming', async (req, res) => {
     console.log(`[Ama] Reply to ${senderPhone}: ${reply}`)
 
     try {
-      await sendSMS({ phone: senderPhone, message: `Ama (Escavio): ${reply}` })
-    } catch {}
+      await sendWhatsApp({
+        phone: senderPhone,
+        message: reply,
+        ref: `ama-${Date.now()}`,
+      })
+      console.log(`[Ama] WhatsApp reply sent to ${senderPhone}`)
+    } catch (waErr) {
+      console.warn(`[Ama] WhatsApp reply failed, falling back to SMS:`, waErr.message)
+      try {
+        await sendSMS({ phone: senderPhone, message: `Ama (Escavio): ${reply}` })
+        console.log(`[Ama] SMS fallback sent to ${senderPhone}`)
+      } catch {}
+    }
 
     await supabase.from('notifications').insert({
       user_id: null,

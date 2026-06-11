@@ -12,6 +12,7 @@ import LeaseDetail from './pages/tenant/LeaseDetail'
 import LandlordDashboard from './pages/landlord/Dashboard'
 import Properties from './pages/landlord/Properties'
 import AddProperty from './pages/landlord/AddProperty'
+import PropertyDetail from './pages/landlord/PropertyDetail'
 import Leases from './pages/landlord/Leases'
 import CreateLease from './pages/landlord/CreateLease'
 import Disputes from './pages/Disputes'
@@ -54,6 +55,7 @@ export default function App() {
         <Route path="/dashboard/lease" element={<LeaseDetail />} />
         <Route path="/dashboard/properties" element={<Properties />} />
         <Route path="/dashboard/properties/new" element={<AddProperty />} />
+        <Route path="/dashboard/properties/:id" element={<PropertyDetail />} />
         <Route path="/dashboard/leases" element={<Leases />} />
         <Route path="/dashboard/leases/new" element={<CreateLease />} />
         <Route path="/dashboard/disputes" element={<Disputes />} />

@@ -10,6 +10,27 @@ const client = axios.create({
   },
 })
 
+export async function sendMessage({ phone, message, ref }) {
+  const norm = normalizePhone(phone)
+  try {
+    const { data } = await client.post('/open/whatsapp/send', {
+      type: 'text',
+      messages: [
+        {
+          recipient: norm,
+          ref: ref || `wa-reply-${Date.now()}`,
+          message,
+        },
+      ],
+    })
+    console.log(`[WhatsApp] Message sent to ${norm}:`, data?.code || data?.status)
+    return data
+  } catch (err) {
+    console.error(`[WhatsApp] Send failed:`, err.response?.status, err.response?.data || err.message)
+    throw err
+  }
+}
+
 export async function sendTemplate({ phone, template, language, placeholders, ref }) {
   const norm = normalizePhone(phone)
   const { data } = await client.post('/open/whatsapp/send', {

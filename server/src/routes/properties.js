@@ -74,6 +74,21 @@ router.post('/:id/verify-document', authenticate, requireRole('landlord'), async
   }
 })
 
+router.get('/available', authenticate, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('properties')
+      .select('*, landlord:users!properties_landlord_id_fkey(full_name, phone, is_verified)')
+      .eq('status', 'vacant')
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    res.json(data)
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch properties' })
+  }
+})
+
 router.get('/mine', authenticate, requireRole('landlord'), async (req, res) => {
   try {
     const { data, error } = await supabase

@@ -1,12 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Wallet, FileText, Shield, User, Building2, ScrollText } from 'lucide-react'
+import { Home, Wallet, FileText, Shield, User, Building2, ScrollText, Search } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 
 const tenantLinks = [
   { to: '/dashboard', icon: Home, label: 'Home' },
+  { to: '/dashboard/browse', icon: Search, label: 'Browse' },
   { to: '/dashboard/pay', icon: Wallet, label: 'Pay' },
   { to: '/dashboard/lease', icon: FileText, label: 'Lease' },
-  { to: '/dashboard/disputes', icon: Shield, label: 'Disputes' },
   { to: '/profile', icon: User, label: 'Profile' },
 ]
 

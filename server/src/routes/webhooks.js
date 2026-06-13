@@ -57,15 +57,15 @@ router.post('/moolre', async (req, res) => {
       if (payment.payer?.phone) {
         sendSMS({
           phone: payment.payer.phone,
-          message: `Escavio: Your rent payment of GHS ${payment.amount.toFixed(2)} was not completed. Please try again from the app.`,
+          message: `Escavio: Your payment of GHS ${payment.amount.toFixed(2)} was not completed. Please try again from the app.`,
         }).catch(() => {})
       }
 
       notifyBoth({
         payerId: payment.payer_id,
         recipientId: payment.recipient_id,
-        payerMsg: `Your rent payment of GHS ${payment.amount.toFixed(2)} failed. Please try again.`,
-        recipientMsg: `A rent payment of GHS ${payment.amount.toFixed(2)} for ${payment.leases?.properties?.address || 'your property'} was declined.`,
+        payerMsg: `Your payment of GHS ${payment.amount.toFixed(2)} failed. Please try again.`,
+        recipientMsg: `A payment of GHS ${payment.amount.toFixed(2)} for ${payment.leases?.properties?.address || 'your property'} was declined.`,
         type: 'payment',
       }).catch(() => {})
 
@@ -80,27 +80,85 @@ router.post('/moolre', async (req, res) => {
       })
       .eq('id', payment.id)
 
-    if (payment.type === 'tenant_collection') {
-      const newBalance = (payment.leases?.escrow_balance || 0) + payment.amount
+    const address = payment.leases?.properties?.address || 'your property'
 
+    if (payment.type === 'security_deposit') {
       await supabase
         .from('leases')
-        .update({ escrow_balance: newBalance })
+        .update({
+          security_deposit: payment.amount,
+          status: 'active',
+        })
         .eq('id', payment.lease_id)
 
-      const address = payment.leases?.properties?.address || 'your property'
+      await supabase
+        .from('properties')
+        .update({ status: 'occupied' })
+        .eq('id', payment.leases?.property_id)
 
       if (payment.payer?.phone) {
         sendSMS({
           phone: payment.payer.phone,
-          message: `Escavio: Your rent of GHS ${payment.amount.toFixed(2)} for ${address} has been received and secured in escrow. Ref: ${ref}`,
+          message: `Escavio: Security deposit of GHS ${payment.amount.toFixed(2)} for ${address} received. Your lease is now active!`,
         }).catch(() => {})
       }
 
       if (payment.recipient?.phone) {
         sendSMS({
           phone: payment.recipient.phone,
-          message: `Escavio: Rent payment of GHS ${payment.amount.toFixed(2)} received for ${address} and held in escrow. Ref: ${ref}`,
+          message: `Escavio: Tenant ${payment.payer?.full_name || ''} paid security deposit of GHS ${payment.amount.toFixed(2)} for ${address}. Lease is now active.`,
+        }).catch(() => {})
+      }
+
+      notifyBoth({
+        payerId: payment.payer_id,
+        recipientId: payment.recipient_id,
+        payerMsg: `Security deposit of GHS ${payment.amount.toFixed(2)} received. Your lease for ${address} is now active!`,
+        recipientMsg: `Security deposit of GHS ${payment.amount.toFixed(2)} received for ${address}. Lease is now active.`,
+        type: 'payment',
+      }).catch(() => {})
+
+      console.log(`[Webhook] Security deposit ${payment.id} success, lease activated`)
+      return res.json({ received: true, result: 'security_deposit_success' })
+    }
+
+    if (payment.type === 'tenant_collection') {
+      const netAmount = payment.net_amount || payment.amount
+      const escavioFee = payment.escavio_fee || 0
+      const newBalance = (payment.leases?.escrow_balance || 0) + netAmount
+
+      await supabase
+        .from('leases')
+        .update({ escrow_balance: newBalance })
+        .eq('id', payment.lease_id)
+
+      if (escavioFee > 0) {
+        await supabase
+          .from('payments')
+          .insert({
+            lease_id: payment.lease_id,
+            payer_id: payment.payer_id,
+            recipient_id: null,
+            amount: escavioFee,
+            net_amount: escavioFee,
+            escavio_fee: 0,
+            type: 'fee',
+            status: 'success',
+            paid_at: new Date().toISOString(),
+          })
+      }
+
+      if (payment.payer?.phone) {
+        sendSMS({
+          phone: payment.payer.phone,
+          message: `Escavio: Your rent of GHS ${payment.amount.toFixed(2)} for ${address} has been received and secured in escrow. Fee: GHS ${escavioFee.toFixed(2)}. Ref: ${ref}`,
+        }).catch(() => {})
+      }
+
+      if (payment.recipient?.phone) {
+        sendSMS({
+          phone: payment.recipient.phone,
+          message: `Escavio: Rent of GHS ${netAmount.toFixed(2)} received for ${address} (after 1% platform fee). Held in escrow. Ref: ${ref}`,
         }).catch(() => {})
       }
 
@@ -117,8 +175,8 @@ router.post('/moolre', async (req, res) => {
       notifyBoth({
         payerId: payment.payer_id,
         recipientId: payment.recipient_id,
-        payerMsg: `Your rent of GHS ${payment.amount.toFixed(2)} for ${address} has been received. Ref: ${ref}`,
-        recipientMsg: `Rent payment of GHS ${payment.amount.toFixed(2)} received for ${address}. Ref: ${ref}`,
+        payerMsg: `Rent of GHS ${payment.amount.toFixed(2)} for ${address} received. Fee: GHS ${escavioFee.toFixed(2)}. Ref: ${ref}`,
+        recipientMsg: `Rent of GHS ${netAmount.toFixed(2)} received for ${address} (net after 1% fee). Ref: ${ref}`,
         type: 'payment',
       }).catch(() => {})
 

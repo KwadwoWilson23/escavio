@@ -1,6 +1,8 @@
 import { Router } from 'express'
 import { supabase } from '../config/supabase.js'
 import { authenticate } from '../middleware/auth.js'
+import { notifyBoth } from '../services/notify.js'
+import { sendSMS } from '../services/moolre.js'
 
 const router = Router()
 
@@ -34,6 +36,7 @@ router.post('/', authenticate, async (req, res) => {
         end_date,
         advance_months: advance_months || 6,
         payout_mode: payout_mode || 'monthly',
+        status: 'pending',
       })
       .select()
       .single()
@@ -45,17 +48,42 @@ router.post('/', authenticate, async (req, res) => {
       .update({ status: 'pending' })
       .eq('id', property_id)
 
+    if (tenant_id) {
+      notifyBoth({
+        payerId: tenant_id,
+        recipientId: req.user.id,
+        payerMsg: `You have a new lease invitation. Review and accept it in the app.`,
+        recipientMsg: `Lease created successfully. Waiting for tenant to accept.`,
+        type: 'lease',
+      }).catch(() => {})
+    }
+
     res.status(201).json(data)
   } catch (err) {
+    console.error('[Leases] Create error:', err.message)
     res.status(500).json({ error: 'Failed to create lease' })
   }
 })
 
 router.post('/:id/accept', authenticate, async (req, res) => {
   try {
+    const { data: user } = await supabase
+      .from('users')
+      .select('is_verified, is_blacklisted, full_name, phone')
+      .eq('id', req.user.id)
+      .single()
+
+    if (user?.is_blacklisted) {
+      return res.status(403).json({ error: 'Your account has been restricted due to payment defaults. Contact support.' })
+    }
+
+    if (!user?.is_verified) {
+      return res.status(403).json({ error: 'Please complete KYC verification before accepting a lease.' })
+    }
+
     const { data: lease, error: fetchErr } = await supabase
       .from('leases')
-      .select('*')
+      .select('*, properties(address)')
       .eq('id', req.params.id)
       .single()
 
@@ -63,22 +91,39 @@ router.post('/:id/accept', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Lease not found' })
     }
 
+    if (lease.status !== 'pending') {
+      return res.status(400).json({ error: 'This lease is not available for acceptance' })
+    }
+
     const { data, error } = await supabase
       .from('leases')
-      .update({ tenant_id: req.user.id, status: 'active' })
+      .update({
+        tenant_id: req.user.id,
+        status: 'accepted',
+      })
       .eq('id', req.params.id)
       .select()
       .single()
 
     if (error) throw error
 
-    await supabase
-      .from('properties')
-      .update({ status: 'occupied' })
-      .eq('id', lease.property_id)
+    const address = lease.properties?.address || 'the property'
 
-    res.json(data)
+    notifyBoth({
+      payerId: req.user.id,
+      recipientId: lease.landlord_id,
+      payerMsg: `You accepted the lease for ${address}. Please pay your security deposit of GHS ${lease.monthly_amount.toFixed(2)} to activate it.`,
+      recipientMsg: `${user.full_name || 'Tenant'} accepted the lease for ${address}. Awaiting security deposit payment.`,
+      type: 'lease',
+    }).catch(() => {})
+
+    res.json({
+      lease: data,
+      message: 'Lease accepted. Pay your security deposit to activate.',
+      security_deposit_required: lease.monthly_amount,
+    })
   } catch (err) {
+    console.error('[Leases] Accept error:', err.message)
     res.status(500).json({ error: 'Failed to accept lease' })
   }
 })

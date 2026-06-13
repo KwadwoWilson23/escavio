@@ -1,5 +1,8 @@
 import { supabase } from '../config/supabase.js'
 import { disbursePayment, sendSMS } from './moolre.js'
+import { notifyBoth } from './notify.js'
+
+const ESCAVIO_FEE_RATE = 0.01
 
 export async function processDisbursement(lease) {
   const { payout_mode, escrow_balance, monthly_amount, advance_months, landlord_id } = lease
@@ -17,30 +20,31 @@ export async function processDisbursement(lease) {
 
   let shouldDisburse = false
   let disburseAmount = 0
+  const netMonthly = Math.round(monthly_amount * (1 - ESCAVIO_FEE_RATE) * 100) / 100
 
   switch (payout_mode) {
     case 'monthly':
-      if (escrow_balance >= monthly_amount) {
+      if (escrow_balance >= netMonthly) {
         shouldDisburse = true
-        disburseAmount = monthly_amount
+        disburseAmount = netMonthly
       }
       break
 
     case 'lump_sum':
-      if (escrow_balance >= monthly_amount * advance_months) {
+      if (escrow_balance >= netMonthly * advance_months) {
         shouldDisburse = true
-        disburseAmount = monthly_amount * advance_months
+        disburseAmount = netMonthly * advance_months
       }
       break
 
     case 'hybrid': {
-      const halfTarget = (monthly_amount * advance_months) / 2
+      const halfTarget = (netMonthly * advance_months) / 2
       if (!lease.advance_disbursed && escrow_balance >= halfTarget) {
         shouldDisburse = true
         disburseAmount = halfTarget
-      } else if (lease.advance_disbursed && escrow_balance >= monthly_amount) {
+      } else if (lease.advance_disbursed && escrow_balance >= netMonthly) {
         shouldDisburse = true
-        disburseAmount = monthly_amount
+        disburseAmount = netMonthly
       }
       break
     }
@@ -66,6 +70,8 @@ export async function processDisbursement(lease) {
         payer_id: null,
         recipient_id: landlord_id,
         amount: disburseAmount,
+        net_amount: disburseAmount,
+        escavio_fee: 0,
         moolre_reference: reference,
         type: 'landlord_disbursement',
         status: 'success',
@@ -86,12 +92,11 @@ export async function processDisbursement(lease) {
       .update(update)
       .eq('id', lease.id)
 
+    const address = lease.properties?.address || 'your property'
     sendSMS({
       phone: landlord.phone,
-      message: `Escavio: GHS ${disburseAmount.toFixed(2)} has been sent to your wallet for ${lease.properties?.address || 'your property'}. Ref: ${reference}`,
-    }).catch(err => {
-      console.error('[Disbursement] SMS notification failed:', err.message)
-    })
+      message: `Escavio: GHS ${disburseAmount.toFixed(2)} has been sent to your wallet for ${address}. Ref: ${reference}`,
+    }).catch(() => {})
 
     console.log(`[Disbursement] Success: GHS ${disburseAmount} to ${landlord.full_name}, ref: ${reference}`)
     return { reference, amount: disburseAmount, moolre: moolreResult }
@@ -112,6 +117,76 @@ export async function processDisbursement(lease) {
 
     return null
   }
+}
+
+export async function useSecurityDeposit(lease) {
+  if (!lease.security_deposit || lease.security_deposit <= 0 || lease.security_deposit_used) {
+    console.log(`[Disbursement] No security deposit available for lease ${lease.id}`)
+    return null
+  }
+
+  const depositAmount = lease.security_deposit
+  const address = lease.properties?.address || 'the property'
+
+  console.log(`[Disbursement] Using security deposit of GHS ${depositAmount} for lease ${lease.id}`)
+
+  const netAmount = Math.round(depositAmount * (1 - ESCAVIO_FEE_RATE) * 100) / 100
+  const escavioFee = Math.round(depositAmount * ESCAVIO_FEE_RATE * 100) / 100
+
+  const newBalance = (lease.escrow_balance || 0) + netAmount
+
+  await supabase
+    .from('leases')
+    .update({
+      security_deposit_used: true,
+      escrow_balance: newBalance,
+    })
+    .eq('id', lease.id)
+
+  await supabase
+    .from('payments')
+    .insert({
+      lease_id: lease.id,
+      payer_id: lease.tenant_id,
+      recipient_id: lease.landlord_id,
+      amount: depositAmount,
+      escavio_fee: escavioFee,
+      net_amount: netAmount,
+      type: 'security_deposit_used',
+      status: 'success',
+      paid_at: new Date().toISOString(),
+    })
+
+  if (escavioFee > 0) {
+    await supabase
+      .from('payments')
+      .insert({
+        lease_id: lease.id,
+        payer_id: lease.tenant_id,
+        recipient_id: null,
+        amount: escavioFee,
+        net_amount: escavioFee,
+        escavio_fee: 0,
+        type: 'fee',
+        status: 'success',
+        paid_at: new Date().toISOString(),
+      })
+  }
+
+  notifyBoth({
+    payerId: lease.tenant_id,
+    recipientId: lease.landlord_id,
+    payerMsg: `Your security deposit of GHS ${depositAmount.toFixed(2)} has been used to cover overdue rent for ${address}. Your deposit is now depleted.`,
+    recipientMsg: `Security deposit of GHS ${netAmount.toFixed(2)} (net after 1% fee) applied to overdue rent for ${address}.`,
+    type: 'payment',
+  }).catch(() => {})
+
+  const updatedLease = { ...lease, escrow_balance: newBalance }
+  processDisbursement(updatedLease).catch(err => {
+    console.error('[Disbursement] Post-deposit disbursement error:', err.message)
+  })
+
+  return { amount: depositAmount, netAmount }
 }
 
 export async function checkOverduePayments() {

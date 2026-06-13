@@ -44,6 +44,8 @@ export default function PayRent() {
   }, [])
 
   const amount = lease?.monthly_amount || 0
+  const escavioFee = Math.round(amount * 0.01 * 100) / 100
+  const netAmount = Math.round((amount - escavioFee) * 100) / 100
   const escrowPercent = lease ? Math.round((lease.escrow_balance / (lease.monthly_amount * lease.advance_months)) * 100) : 0
 
   function startPolling(id) {
@@ -157,11 +159,15 @@ export default function PayRent() {
               <span className="text-text-primary">{formatGHS(amount)}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-text-muted">Escrow Fee</span>
-              <span className="text-text-primary">GHS 0.00</span>
+              <span className="text-text-muted">Escavio Fee (1%)</span>
+              <span className="text-text-primary">{formatGHS(escavioFee)}</span>
+            </div>
+            <div className="flex justify-between text-sm text-xs">
+              <span className="text-text-dim">Net to Escrow</span>
+              <span className="text-text-dim">{formatGHS(netAmount)}</span>
             </div>
             <div className="border-t border-surface-border pt-3 flex justify-between font-bold">
-              <span className="text-primary">Total</span>
+              <span className="text-primary">You Pay</span>
               <span className="text-primary">{formatGHS(amount)}</span>
             </div>
           </GlassCard>

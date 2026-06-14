@@ -85,17 +85,19 @@ export default function Profile() {
         <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Account Settings</h3>
         <div className="space-y-2">
           {[
-            { icon: CreditCard, label: 'Payment Methods' },
-            { icon: FileText, label: 'Lease Documents' },
-            { icon: ShieldCheck, label: 'Security & Privacy' },
-          ].map(({ icon: Icon, label }) => (
-            <GlassCard key={label} className="flex items-center justify-between py-4">
-              <div className="flex items-center gap-3">
-                <Icon size={18} className="text-text-muted" />
-                <span className="font-medium text-sm text-text-primary">{label}</span>
-              </div>
-              <span className="text-text-dim">&rsaquo;</span>
-            </GlassCard>
+            { icon: CreditCard, label: 'Payment Methods', to: '/dashboard/pay' },
+            { icon: FileText, label: 'Lease Documents', to: '/dashboard/lease' },
+            { icon: ShieldCheck, label: 'Security & Privacy', to: '/settings' },
+          ].map(({ icon: Icon, label, to }) => (
+            <Link key={label} to={to}>
+              <GlassCard className="flex items-center justify-between py-4">
+                <div className="flex items-center gap-3">
+                  <Icon size={18} className="text-text-muted" />
+                  <span className="font-medium text-sm text-text-primary">{label}</span>
+                </div>
+                <ArrowRight size={16} className="text-text-dim" />
+              </GlassCard>
+            </Link>
           ))}
         </div>
       </div>

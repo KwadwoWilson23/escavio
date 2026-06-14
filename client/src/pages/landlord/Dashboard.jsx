@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Building2, ScrollText, ArrowDownRight, Plus, ChevronRight } from 'lucide-react'
+import { Building2, ScrollText, ArrowDownRight, Plus, ChevronRight, AlertTriangle } from 'lucide-react'
 import GlassCard from '../../components/ui/GlassCard'
 import Badge from '../../components/ui/Badge'
 import { formatGHS, formatDate } from '../../utils/format'
 import api from '../../services/api'
+import { useAuth } from '../../hooks/useAuth'
 
 export default function LandlordDashboard() {
+  const { user } = useAuth()
   const [properties, setProperties] = useState([])
   const [leases, setLeases] = useState([])
   const [loading, setLoading] = useState(true)
@@ -37,6 +39,21 @@ export default function LandlordDashboard() {
 
   return (
     <div className="space-y-6">
+      {!user?.is_verified && properties.length > 0 && (
+        <GlassCard className="border-orange-300 bg-orange-50/30">
+          <div className="flex items-start gap-3">
+            <AlertTriangle size={20} className="text-orange-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-orange-700 text-sm">Properties Hidden</p>
+              <p className="text-xs text-text-muted mt-1">Your property listings are hidden from tenants until you complete verification.</p>
+              <Link to="/dashboard/kyc" className="text-xs text-primary font-semibold mt-2 inline-block">
+                Verify your account now &rarr;
+              </Link>
+            </div>
+          </div>
+        </GlassCard>
+      )}
+
       <div className="grid grid-cols-2 gap-3">
         <GlassCard>
           <span className="text-xs text-text-muted uppercase tracking-wider">Total Properties</span>

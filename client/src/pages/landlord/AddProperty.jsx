@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Minus, Plus, Camera, FileCheck, CheckCircle, XCircle, Loader2, Home, Building2, Store, BedDouble, LayoutGrid, Upload, X, Droplets, Zap, Car, ShieldCheck, Wifi, Wind, TreePine, Utensils } from 'lucide-react'
+import { useNavigate, Link } from 'react-router-dom'
+import { ArrowLeft, ArrowRight, Minus, Plus, Camera, FileCheck, CheckCircle, XCircle, Loader2, Home, Building2, Store, BedDouble, LayoutGrid, Upload, X, Droplets, Zap, Car, ShieldCheck, Wifi, Wind, TreePine, Utensils, AlertCircle } from 'lucide-react'
 import GlassCard from '../../components/ui/GlassCard'
 import api from '../../services/api'
+import { useAuth } from '../../hooks/useAuth'
 
 const regions = [
   'Greater Accra', 'Ashanti', 'Western', 'Eastern', 'Central',
@@ -39,7 +40,9 @@ const docTypes = [
 ]
 
 export default function AddProperty() {
+  const { user } = useAuth()
   const [step, setStep] = useState(1)
+  const [saveError, setSaveError] = useState('')
   const [form, setForm] = useState({
     address: '',
     region: 'Greater Accra',
@@ -87,6 +90,7 @@ export default function AddProperty() {
 
   async function handleCreateProperty() {
     setSaving(true)
+    setSaveError('')
     try {
       const { data } = await api.post('/properties', {
         ...form,
@@ -95,7 +99,8 @@ export default function AddProperty() {
       setPropertyId(data.id)
       setSaving(false)
       setStep(3)
-    } catch {
+    } catch (err) {
+      setSaveError(err.response?.data?.error || 'Failed to create property')
       setSaving(false)
     }
   }
@@ -137,6 +142,30 @@ export default function AddProperty() {
         <span className={step === 2 ? 'text-primary font-semibold' : ''}>Description</span>
         <span className={step === 3 ? 'text-primary font-semibold' : ''}>Documents</span>
       </div>
+
+      {!user?.is_verified && (
+        <GlassCard className="border-orange-300 bg-orange-50/50">
+          <div className="flex items-start gap-3">
+            <AlertCircle size={20} className="text-orange-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-orange-700 text-sm">Verification Required</p>
+              <p className="text-xs text-text-muted mt-1">You need to complete identity verification before listing a property.</p>
+              <Link to="/dashboard/kyc" className="text-xs text-primary font-semibold mt-2 inline-block">
+                Verify your account &rarr;
+              </Link>
+            </div>
+          </div>
+        </GlassCard>
+      )}
+
+      {saveError && (
+        <GlassCard className="border-red-200">
+          <div className="flex items-start gap-3">
+            <AlertCircle size={18} className="text-red-500 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-red-700">{saveError}</p>
+          </div>
+        </GlassCard>
+      )}
 
       {step === 1 && (
         <div className="space-y-5">

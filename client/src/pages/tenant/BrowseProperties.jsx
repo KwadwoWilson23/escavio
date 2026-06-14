@@ -175,9 +175,9 @@ export default function BrowseProperties() {
                   </div>
                   <div className="flex items-center justify-between mt-3 pt-3 border-t border-surface-border">
                     <p className="text-lg font-bold text-primary">{formatGHS(prop.monthly_rent)}<span className="text-xs text-text-muted font-normal">/mo</span></p>
-                    {prop.landlord?.full_name && (
-                      <p className="text-xs text-text-muted">by {prop.landlord.full_name}</p>
-                    )}
+                    <span className="flex items-center gap-1 text-[10px] text-accent-success font-semibold">
+                      <CheckCircle size={10} /> Verified
+                    </span>
                   </div>
                   {amenities.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mt-2">

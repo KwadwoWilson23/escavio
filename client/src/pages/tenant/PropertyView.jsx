@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Building2, MapPin, BedDouble, CheckCircle, Shield, Phone, MessageCircle, Droplets, Zap, Car, ShieldCheck, Wifi, Wind, TreePine, Utensils, User } from 'lucide-react'
+import { useParams, useNavigate, Link } from 'react-router-dom'
+import { ArrowLeft, Building2, MapPin, BedDouble, CheckCircle, Shield, Droplets, Zap, Car, ShieldCheck, Wifi, Wind, TreePine, Utensils, Loader2, AlertCircle } from 'lucide-react'
 import GlassCard from '../../components/ui/GlassCard'
 import Badge from '../../components/ui/Badge'
 import { formatGHS } from '../../utils/format'
@@ -23,6 +23,9 @@ export default function PropertyView() {
   const { id } = useParams()
   const [property, setProperty] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [requesting, setRequesting] = useState(false)
+  const [requestResult, setRequestResult] = useState(null)
+  const [requestError, setRequestError] = useState('')
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -31,6 +34,19 @@ export default function PropertyView() {
       .catch(() => navigate('/dashboard/browse'))
       .finally(() => setLoading(false))
   }, [id])
+
+  async function handleRequest() {
+    setRequesting(true)
+    setRequestError('')
+    try {
+      const { data } = await api.post(`/properties/${id}/request`)
+      setRequestResult(data)
+    } catch (err) {
+      setRequestError(err.response?.data?.error || 'Failed to send request')
+    } finally {
+      setRequesting(false)
+    }
+  }
 
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-text-muted">Loading...</div>
@@ -41,10 +57,6 @@ export default function PropertyView() {
   }
 
   const amenities = Array.isArray(property.amenities) ? property.amenities : []
-  const landlordPhone = property.landlord?.phone
-  const displayPhone = landlordPhone
-    ? (landlordPhone.startsWith('233') ? '0' + landlordPhone.slice(3) : landlordPhone).replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3')
-    : null
 
   return (
     <div className="space-y-5">
@@ -121,47 +133,61 @@ export default function PropertyView() {
         </GlassCard>
       )}
 
-      {property.landlord && (
-        <GlassCard>
-          <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Landlord</h3>
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-              <User size={22} className="text-primary" />
-            </div>
-            <div className="flex-1">
-              <p className="font-semibold">{property.landlord.full_name}</p>
-              <div className="flex items-center gap-1 mt-0.5">
-                {property.landlord.is_verified && (
-                  <span className="flex items-center gap-0.5 text-[10px] text-accent-success font-semibold">
-                    <CheckCircle size={10} /> KYC Verified
-                  </span>
-                )}
-              </div>
-            </div>
+      <GlassCard>
+        <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Managed By</h3>
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+            <Shield size={22} className="text-primary" />
           </div>
-        </GlassCard>
-      )}
+          <div className="flex-1">
+            <p className="font-semibold">Escavio Verified Landlord</p>
+            <span className="flex items-center gap-0.5 text-[10px] text-accent-success font-semibold">
+              <CheckCircle size={10} /> Identity Verified
+            </span>
+          </div>
+        </div>
+      </GlassCard>
 
-      <div className="space-y-3">
-        {landlordPhone && (
-          <a
-            href={`tel:${landlordPhone}`}
-            className="btn-primary w-full flex items-center justify-center gap-2 text-lg py-4"
+      {requestResult ? (
+        <GlassCard glow="success" className="text-center py-4">
+          <CheckCircle size={36} className="text-accent-success mx-auto mb-2" />
+          <p className="font-semibold text-accent-success">Request Sent!</p>
+          <p className="text-sm text-text-muted mt-1">The landlord will review your profile and respond.</p>
+          <Link to="/dashboard/browse" className="text-primary text-sm font-semibold mt-3 inline-block">
+            Browse more properties
+          </Link>
+        </GlassCard>
+      ) : (
+        <div className="space-y-3">
+          {requestError && (
+            <GlassCard className="border-red-200">
+              <div className="flex items-start gap-3">
+                <AlertCircle size={18} className="text-red-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm text-red-700">{requestError}</p>
+                  {requestError.includes('KYC') && (
+                    <Link to="/dashboard/kyc" className="text-xs text-primary font-semibold mt-1 inline-block">
+                      Complete Verification &rarr;
+                    </Link>
+                  )}
+                </div>
+              </div>
+            </GlassCard>
+          )}
+
+          <button
+            onClick={handleRequest}
+            disabled={requesting}
+            className="w-full flex items-center justify-center gap-2 py-4 rounded-xl font-semibold text-lg bg-emerald-400 text-slate-950 active:scale-95 transition-all disabled:opacity-50"
           >
-            <Phone size={20} /> Call Landlord
-          </a>
-        )}
-        {landlordPhone && (
-          <a
-            href={`https://wa.me/${landlordPhone}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-semibold bg-green-500 text-white"
-          >
-            <MessageCircle size={18} /> WhatsApp Landlord
-          </a>
-        )}
-      </div>
+            {requesting ? (
+              <><Loader2 size={20} className="animate-spin" /> Sending Request...</>
+            ) : (
+              'Request This Property'
+            )}
+          </button>
+        </div>
+      )}
 
       <GlassCard className="flex items-start gap-3">
         <Shield size={16} className="text-primary flex-shrink-0 mt-0.5" />

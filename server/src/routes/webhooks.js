@@ -4,6 +4,7 @@ import { sendSMS, verifyWebhookSignature } from '../services/moolre.js'
 import { processDisbursement } from '../services/disbursement.js'
 import { sendPaymentReceipt } from '../services/whatsapp.js'
 import { notifyBoth } from '../services/notify.js'
+import { getOrCreateWallet } from './wallet.js'
 
 const router = Router()
 
@@ -191,6 +192,65 @@ router.post('/moolre', async (req, res) => {
   } catch (err) {
     console.error('[Webhook] Error:', err.message)
     res.status(500).json({ error: 'Webhook processing failed' })
+  }
+})
+
+router.post('/moolre-wallet', async (req, res) => {
+  try {
+    const { reference, externalref, status, amount } = req.body
+    const ref = reference || externalref
+
+    if (!ref) return res.json({ received: true, ignored: 'no reference' })
+
+    const moolreStatus = String(status).toLowerCase()
+    const isSuccess = ['success', 'successful', 'completed'].includes(moolreStatus)
+    const isFailed = ['failed', 'declined', 'rejected', 'error'].includes(moolreStatus)
+
+    if (!isSuccess && !isFailed) {
+      return res.json({ received: true, status: 'intermediate' })
+    }
+
+    const { data: txn } = await supabase
+      .from('wallet_transactions')
+      .select('*')
+      .eq('reference', ref)
+      .eq('type', 'deposit')
+      .single()
+
+    if (!txn) return res.status(404).json({ error: 'Transaction not found' })
+    if (txn.status === 'success') return res.json({ received: true, already_processed: true })
+
+    if (isFailed) {
+      await supabase
+        .from('wallet_transactions')
+        .update({ status: 'failed' })
+        .eq('id', txn.id)
+      return res.json({ received: true, result: 'failed' })
+    }
+
+    const wallet = await getOrCreateWallet(txn.user_id)
+    const newBalance = Number(wallet.balance) + Number(txn.amount)
+
+    await supabase
+      .from('wallets')
+      .update({ balance: newBalance, updated_at: new Date().toISOString() })
+      .eq('id', wallet.id)
+
+    await supabase
+      .from('wallet_transactions')
+      .update({ status: 'success', balance_after: newBalance })
+      .eq('id', txn.id)
+
+    sendSMS({
+      phone: (await supabase.from('users').select('phone').eq('id', txn.user_id).single()).data?.phone,
+      message: `Escavio: GHS ${Number(txn.amount).toFixed(2)} deposited to your wallet. Balance: GHS ${newBalance.toFixed(2)}. Ref: ${ref}`,
+    }).catch(() => {})
+
+    console.log(`[Webhook] Wallet deposit ${txn.id} success, new balance: ${newBalance}`)
+    res.json({ received: true, result: 'wallet_deposit_success' })
+  } catch (err) {
+    console.error('[Webhook] Wallet error:', err.message)
+    res.status(500).json({ error: 'Wallet webhook failed' })
   }
 })
 

@@ -5,7 +5,7 @@ import { useAuth } from '../../hooks/useAuth'
 const tenantLinks = [
   { to: '/dashboard', icon: Home, label: 'Home' },
   { to: '/dashboard/browse', icon: Search, label: 'Browse' },
-  { to: '/dashboard/pay', icon: Wallet, label: 'Pay' },
+  { to: '/dashboard/wallet', icon: Wallet, label: 'Wallet' },
   { to: '/dashboard/lease', icon: FileText, label: 'Lease' },
   { to: '/profile', icon: User, label: 'Profile' },
 ]

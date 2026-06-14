@@ -11,6 +11,7 @@ import disputeRoutes from './routes/disputes.js'
 import whatsappRoutes from './routes/whatsapp.js'
 import notificationRoutes from './routes/notifications.js'
 import kycRoutes from './routes/kyc.js'
+import walletRoutes from './routes/wallet.js'
 import { startReminderSchedule } from './jobs/reminders.js'
 
 const app = express()
@@ -35,6 +36,7 @@ app.use('/api/disputes', disputeRoutes)
 app.use('/api/whatsapp', whatsappRoutes)
 app.use('/api/notifications', notificationRoutes)
 app.use('/api/kyc', kycRoutes)
+app.use('/api/wallet', walletRoutes)
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', service: 'Escavio API', agent: 'Ama v1.0', timestamp: new Date().toISOString() })

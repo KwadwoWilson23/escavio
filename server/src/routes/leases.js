@@ -3,6 +3,7 @@ import { supabase } from '../config/supabase.js'
 import { authenticate } from '../middleware/auth.js'
 import { notifyBoth } from '../services/notify.js'
 import { sendSMS } from '../services/moolre.js'
+import { getOrCreateWallet } from './wallet.js'
 
 const router = Router()
 
@@ -125,6 +126,123 @@ router.post('/:id/accept', authenticate, async (req, res) => {
   } catch (err) {
     console.error('[Leases] Accept error:', err.message)
     res.status(500).json({ error: 'Failed to accept lease' })
+  }
+})
+
+router.post('/accept-request/:requestId', authenticate, async (req, res) => {
+  try {
+    const { start_date, end_date, advance_months, payout_mode } = req.body
+
+    const { data: request, error: reqErr } = await supabase
+      .from('property_requests')
+      .select('*, properties(*, landlord_id), tenant:users!property_requests_tenant_id_fkey(full_name, phone)')
+      .eq('id', req.params.requestId)
+      .single()
+
+    if (reqErr || !request) {
+      return res.status(404).json({ error: 'Request not found' })
+    }
+
+    if (request.landlord_id !== req.user.id) {
+      return res.status(403).json({ error: 'Not your property request' })
+    }
+
+    if (request.status !== 'pending') {
+      return res.status(400).json({ error: 'This request has already been processed' })
+    }
+
+    const monthlyAmount = request.properties.monthly_rent
+    const lockAmount = monthlyAmount * 2
+    const wallet = await getOrCreateWallet(request.tenant_id)
+
+    if (Number(wallet.balance) < lockAmount) {
+      return res.status(400).json({
+        error: `Tenant no longer has sufficient wallet balance (needs GHS ${lockAmount.toFixed(2)}). Request cannot be approved.`,
+      })
+    }
+
+    const newBalance = Number(wallet.balance) - lockAmount
+    const newLocked = Number(wallet.locked_balance) + lockAmount
+
+    await supabase
+      .from('wallets')
+      .update({ balance: newBalance, locked_balance: newLocked, updated_at: new Date().toISOString() })
+      .eq('id', wallet.id)
+
+    const { data: lease, error: leaseErr } = await supabase
+      .from('leases')
+      .insert({
+        property_id: request.property_id,
+        landlord_id: req.user.id,
+        tenant_id: request.tenant_id,
+        monthly_amount: monthlyAmount,
+        start_date: start_date || new Date().toISOString().split('T')[0],
+        end_date: end_date || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        advance_months: advance_months || 6,
+        payout_mode: payout_mode || 'monthly',
+        security_deposit: monthlyAmount,
+        escrow_balance: monthlyAmount,
+        status: 'active',
+      })
+      .select()
+      .single()
+
+    if (leaseErr) throw leaseErr
+
+    await supabase
+      .from('properties')
+      .update({ status: 'occupied' })
+      .eq('id', request.property_id)
+
+    await supabase
+      .from('property_requests')
+      .update({ status: 'approved', updated_at: new Date().toISOString() })
+      .eq('id', req.params.requestId)
+
+    const address = request.properties?.address || 'the property'
+
+    await supabase.from('wallet_transactions').insert([
+      {
+        wallet_id: wallet.id,
+        user_id: request.tenant_id,
+        type: 'lock',
+        amount: monthlyAmount,
+        balance_after: newBalance,
+        description: `Security deposit locked for ${address}`,
+        lease_id: lease.id,
+        status: 'success',
+      },
+      {
+        wallet_id: wallet.id,
+        user_id: request.tenant_id,
+        type: 'lock',
+        amount: monthlyAmount,
+        balance_after: newBalance,
+        description: `First month rent locked for ${address}`,
+        lease_id: lease.id,
+        status: 'success',
+      },
+    ])
+
+    notifyBoth({
+      payerId: request.tenant_id,
+      recipientId: req.user.id,
+      payerMsg: `Your request for ${address} has been approved! GHS ${lockAmount.toFixed(2)} locked (security deposit + first month). Lease is active.`,
+      recipientMsg: `You approved the tenant for ${address}. Lease is now active. Disbursement will follow your payout mode.`,
+      type: 'lease',
+    }).catch(() => {})
+
+    if (request.tenant?.phone) {
+      sendSMS({
+        phone: request.tenant.phone,
+        message: `Escavio: Your property request for ${address} has been approved! GHS ${lockAmount.toFixed(2)} locked from your wallet. Your lease is now active.`,
+      }).catch(() => {})
+    }
+
+    res.status(201).json({ lease, message: 'Request approved, lease created, funds locked.' })
+  } catch (err) {
+    console.error('[Leases] Accept request error:', err.message)
+    res.status(500).json({ error: 'Failed to accept request' })
   }
 })
 

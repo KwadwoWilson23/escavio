@@ -170,10 +170,31 @@ export default function PropertyView() {
                       Complete Verification &rarr;
                     </Link>
                   )}
+                  {requestError.includes('wallet') && (
+                    <Link to="/dashboard/wallet" className="text-xs text-primary font-semibold mt-1 inline-block">
+                      Top up your wallet &rarr;
+                    </Link>
+                  )}
                 </div>
               </div>
             </GlassCard>
           )}
+
+          <GlassCard className="space-y-1">
+            <p className="text-xs text-text-muted">To request this property you need:</p>
+            <div className="flex justify-between text-sm">
+              <span className="text-text-muted">Security deposit</span>
+              <span className="font-semibold">{formatGHS(property.monthly_rent)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-text-muted">First month rent</span>
+              <span className="font-semibold">{formatGHS(property.monthly_rent)}</span>
+            </div>
+            <div className="border-t border-surface-border pt-2 flex justify-between text-sm font-bold">
+              <span className="text-primary">Min. wallet balance</span>
+              <span className="text-primary">{formatGHS(property.monthly_rent * 2)}</span>
+            </div>
+          </GlassCard>
 
           <button
             onClick={handleRequest}

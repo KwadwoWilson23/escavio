@@ -11,6 +11,7 @@ import PaymentSuccess from './pages/tenant/PaymentSuccess'
 import LeaseDetail from './pages/tenant/LeaseDetail'
 import BrowseProperties from './pages/tenant/BrowseProperties'
 import PropertyView from './pages/tenant/PropertyView'
+import WalletPage from './pages/tenant/Wallet'
 import LandlordDashboard from './pages/landlord/Dashboard'
 import Properties from './pages/landlord/Properties'
 import AddProperty from './pages/landlord/AddProperty'
@@ -55,6 +56,7 @@ export default function App() {
         <Route path="/dashboard/pay" element={<PayRent />} />
         <Route path="/dashboard/payment-success" element={<PaymentSuccess />} />
         <Route path="/dashboard/lease" element={<LeaseDetail />} />
+        <Route path="/dashboard/wallet" element={<WalletPage />} />
         <Route path="/dashboard/browse" element={<BrowseProperties />} />
         <Route path="/dashboard/browse/:id" element={<PropertyView />} />
         <Route path="/dashboard/properties" element={<Properties />} />

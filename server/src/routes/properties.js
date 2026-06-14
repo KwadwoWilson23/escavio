@@ -4,6 +4,7 @@ import { authenticate, requireRole } from '../middleware/auth.js'
 import { verifyPropertyDocument } from '../services/ai.js'
 import { sendSMS } from '../services/moolre.js'
 import { createNotification } from '../services/notify.js'
+import { getOrCreateWallet } from './wallet.js'
 
 const router = Router()
 
@@ -190,6 +191,16 @@ router.post('/:id/request', authenticate, requireRole('tenant'), async (req, res
 
     if (property.status !== 'vacant') {
       return res.status(400).json({ error: 'This property is no longer available' })
+    }
+
+    const wallet = await getOrCreateWallet(req.user.id)
+    const requiredAmount = property.monthly_rent * 2
+    if (Number(wallet.balance) < requiredAmount) {
+      return res.status(400).json({
+        error: `Insufficient wallet balance. You need at least GHS ${requiredAmount.toFixed(2)} (1 month rent + 1 month security deposit). Your balance: GHS ${Number(wallet.balance).toFixed(2)}. Top up your wallet first.`,
+        required: requiredAmount,
+        balance: Number(wallet.balance),
+      })
     }
 
     const { data: existing } = await supabase

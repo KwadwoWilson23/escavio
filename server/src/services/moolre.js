@@ -4,6 +4,8 @@ import env from '../config/env.js'
 
 const MOOLRE_BASE = env.moolre.baseUrl || 'https://api.moolre.com'
 
+console.log(`[Moolre] Config: baseUrl=${MOOLRE_BASE}, apiUser=${env.moolre.apiUser ? env.moolre.apiUser.slice(0, 4) + '***' : 'MISSING'}, pubKey=${env.moolre.pubKey ? env.moolre.pubKey.slice(0, 6) + '***' : 'MISSING'}, apiKey=${env.moolre.apiKey ? env.moolre.apiKey.slice(0, 6) + '***' : 'MISSING'}, vasKey=${env.moolre.vasKey ? env.moolre.vasKey.slice(0, 6) + '***' : 'MISSING'}`)
+
 const paymentClient = axios.create({
   baseURL: MOOLRE_BASE,
   headers: {

@@ -1,20 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Wallet, ArrowDownLeft, ArrowUpRight, Lock, Loader2, CheckCircle, XCircle, Smartphone, RefreshCw, Phone } from 'lucide-react'
+import { Wallet, ArrowDownLeft, ArrowUpRight, Lock, Loader2, CheckCircle, XCircle, RefreshCw } from 'lucide-react'
 import GlassCard from '../../components/ui/GlassCard'
 import Badge from '../../components/ui/Badge'
+import NetworkLogo, { detectNetwork } from '../../components/ui/NetworkLogo'
 import { formatGHS, formatDate } from '../../utils/format'
 import { useAuth } from '../../hooks/useAuth'
 import api from '../../services/api'
-
-function detectNetwork(phone) {
-  const digits = phone.replace(/\D/g, '')
-  const prefix = digits.startsWith('233') ? digits.slice(3, 5) : digits.startsWith('0') ? digits.slice(1, 3) : digits.slice(0, 2)
-  if (['24', '25', '53', '54', '55', '59'].includes(prefix)) return 'MTN MoMo'
-  if (['20', '50'].includes(prefix)) return 'Telecel Cash'
-  if (['26', '27', '56', '57'].includes(prefix)) return 'AirtelTigo'
-  return 'Mobile Money'
-}
 
 export default function WalletPage() {
   const [balance, setBalance] = useState(0)
@@ -162,7 +154,10 @@ export default function WalletPage() {
 
           {tab === 'deposit' && (
             <GlassCard className="space-y-4">
-              <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Top Up via {network}</h3>
+              <div className="flex items-center gap-2">
+                <NetworkLogo network={network} size={24} />
+                <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Top Up via {network}</h3>
+              </div>
               <div>
                 <input
                   type="number"
@@ -199,7 +194,10 @@ export default function WalletPage() {
 
           {tab === 'withdraw' && (
             <GlassCard className="space-y-4">
-              <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Withdraw to {network}</h3>
+              <div className="flex items-center gap-2">
+                <NetworkLogo network={network} size={24} />
+                <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Withdraw to {network}</h3>
+              </div>
               <div>
                 <input
                   type="number"
@@ -279,16 +277,19 @@ export default function WalletPage() {
 
       {step === 'processing' && (
         <div className="flex flex-col items-center py-16 space-y-4">
-          <Loader2 size={48} className="text-primary animate-spin" />
+          <div className="relative">
+            <NetworkLogo network={network} size={56} />
+            <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-primary animate-spin" style={{ animationDuration: '1.5s', width: 64, height: 64, top: -4, left: -4 }} />
+          </div>
           <p className="text-text-muted font-medium">Connecting to {network}...</p>
         </div>
       )}
 
       {step === 'waiting' && (
         <div className="flex flex-col items-center py-8 space-y-6">
-          <div className="w-24 h-24 rounded-full bg-yellow-50 flex items-center justify-center relative">
-            <Smartphone size={40} className="text-yellow-600" />
-            <div className="absolute inset-0 rounded-full border-4 border-yellow-200 border-t-yellow-500 animate-spin" style={{ animationDuration: '2s' }} />
+          <div className="relative">
+            <NetworkLogo network={network} size={72} />
+            <div className="absolute rounded-full border-4 border-yellow-200 border-t-yellow-500 animate-spin" style={{ animationDuration: '2s', width: 84, height: 84, top: -6, left: -6 }} />
           </div>
           <div className="text-center">
             <h2 className="text-lg font-bold">Approve on Your Phone</h2>

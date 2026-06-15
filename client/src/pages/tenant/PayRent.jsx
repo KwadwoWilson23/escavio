@@ -1,20 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { Calendar, Lock, CheckCircle, XCircle, Loader2, Phone, ArrowLeft, RefreshCw, Shield, Smartphone } from 'lucide-react'
+import { Calendar, Lock, CheckCircle, XCircle, Loader2, Phone, ArrowLeft, RefreshCw, Shield } from 'lucide-react'
 import GlassCard from '../../components/ui/GlassCard'
 import Badge from '../../components/ui/Badge'
+import NetworkLogo, { detectNetwork } from '../../components/ui/NetworkLogo'
 import { formatGHS } from '../../utils/format'
 import { useAuth } from '../../hooks/useAuth'
 import api from '../../services/api'
-
-function detectNetwork(phone) {
-  const digits = phone.replace(/\D/g, '')
-  const prefix = digits.startsWith('233') ? digits.slice(3, 5) : digits.startsWith('0') ? digits.slice(1, 3) : digits.slice(0, 2)
-  if (['24', '25', '53', '54', '55', '59'].includes(prefix)) return { name: 'MTN MoMo', color: 'bg-yellow-400', text: 'text-black' }
-  if (['20', '50'].includes(prefix)) return { name: 'Telecel Cash', color: 'bg-red-500', text: 'text-white' }
-  if (['26', '27', '56', '57'].includes(prefix)) return { name: 'AirtelTigo', color: 'bg-blue-500', text: 'text-white' }
-  return { name: 'Mobile Money', color: 'bg-gray-400', text: 'text-white' }
-}
 
 export default function PayRent() {
   const [lease, setLease] = useState(null)
@@ -28,7 +20,7 @@ export default function PayRent() {
   const { user } = useAuth()
 
   const phone = user?.phone || ''
-  const network = detectNetwork(phone)
+  const networkName = detectNetwork(phone)
 
   useEffect(() => {
     api.get('/leases/mine').then(({ data }) => {
@@ -141,11 +133,9 @@ export default function PayRent() {
           <GlassCard>
             <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Payment Method</h3>
             <div className="flex items-center gap-4 p-3 bg-surface rounded-xl border border-surface-border">
-              <div className={`w-12 h-12 rounded-full ${network.color} ${network.text} flex items-center justify-center text-xs font-bold flex-shrink-0`}>
-                <Phone size={20} />
-              </div>
+              <NetworkLogo network={networkName} size={44} />
               <div className="flex-1">
-                <p className="font-semibold text-sm">{network.name}</p>
+                <p className="font-semibold text-sm">{networkName}</p>
                 <p className="text-text-muted text-sm font-mono">{formatPhone(phone)}</p>
               </div>
               <Badge variant="info">Auto</Badge>
@@ -195,22 +185,25 @@ export default function PayRent() {
 
       {step === 'initiating' && (
         <div className="flex flex-col items-center justify-center py-16 space-y-4">
-          <Loader2 size={48} className="text-primary animate-spin" />
-          <p className="text-text-muted font-medium">Connecting to {network.name}...</p>
+          <div className="relative">
+            <NetworkLogo network={networkName} size={56} />
+            <div className="absolute rounded-full border-4 border-transparent border-t-primary animate-spin" style={{ animationDuration: '1.5s', width: 64, height: 64, top: -4, left: -4 }} />
+          </div>
+          <p className="text-text-muted font-medium">Connecting to {networkName}...</p>
         </div>
       )}
 
       {step === 'waiting' && (
         <div className="flex flex-col items-center justify-center py-8 space-y-6">
-          <div className="w-24 h-24 rounded-full bg-yellow-50 flex items-center justify-center relative">
-            <Smartphone size={40} className="text-yellow-600" />
-            <div className="absolute inset-0 rounded-full border-4 border-yellow-200 border-t-yellow-500 animate-spin" style={{ animationDuration: '2s' }} />
+          <div className="relative">
+            <NetworkLogo network={networkName} size={72} />
+            <div className="absolute rounded-full border-4 border-yellow-200 border-t-yellow-500 animate-spin" style={{ animationDuration: '2s', width: 84, height: 84, top: -6, left: -6 }} />
           </div>
 
           <div className="text-center">
             <h2 className="text-lg font-bold">Approve on Your Phone</h2>
             <p className="text-sm text-text-muted mt-2 max-w-xs">
-              A {network.name} payment prompt of <strong>{formatGHS(amount)}</strong> has been sent to <strong>{formatPhone(phone)}</strong>.
+              A {networkName} payment prompt of <strong>{formatGHS(amount)}</strong> has been sent to <strong>{formatPhone(phone)}</strong>.
             </p>
           </div>
 
@@ -269,7 +262,7 @@ export default function PayRent() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-text-muted">Method</span>
-                <span className="text-text-primary">{network.name}</span>
+                <span className="text-text-primary">{networkName}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-text-muted">Property</span>

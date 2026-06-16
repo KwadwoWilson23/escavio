@@ -86,8 +86,7 @@ export default function Landing() {
         </section>
 
         <div className="text-center text-text-dim text-xs pb-4">
-          No smartphone? Dial <span className="text-primary font-bold">*714#</span> to access Escavio
-          <div className="flex justify-center gap-4 mt-3">
+          <div className="flex justify-center gap-4">
             <Link to="/terms" className="text-text-muted hover:text-primary">Terms</Link>
             <Link to="/privacy" className="text-text-muted hover:text-primary">Privacy</Link>
           </div>

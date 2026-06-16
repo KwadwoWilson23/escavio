@@ -110,16 +110,6 @@ export default function Login() {
           />
         </div>
 
-        <div className="mt-8 glass-card p-4 flex items-start gap-3">
-          <Phone size={20} className="text-primary flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-medium text-text-primary">No smartphone?</p>
-            <p className="text-xs text-text-muted mt-0.5">
-              Access your dashboard via USSD. Dial <span className="text-primary font-bold">*714#</span> from your registered number.
-            </p>
-          </div>
-        </div>
-
         <p className="text-center text-sm text-text-muted mt-6 pb-8">
           Don't have an account? <Link to="/register" className="text-primary font-semibold">Sign up now</Link>
         </p>

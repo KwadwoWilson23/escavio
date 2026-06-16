@@ -8,7 +8,7 @@ export default {
   supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY,
   jwtSecret: process.env.JWT_SECRET || 'escavio-dev-secret-2026',
   moolre: {
-    baseUrl: (process.env.MOOLRE_BASE_URL || 'https://api.moolre.com').trim(),
+    baseUrl: (process.env.MOOLRE_BASE_URL || 'https://sandbox.moolre.com').trim(),
     apiUser: process.env.MOOLRE_API_USER?.trim(),
     apiKey: process.env.MOOLRE_API_KEY?.trim(),
     pubKey: process.env.MOOLRE_API_PUBKEY?.trim(),

@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { GoogleLogin } from '@react-oauth/google'
 import { useAuth } from '../hooks/useAuth'
-import { Phone, Lock, ArrowRight } from 'lucide-react'
+import { Phone, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react'
 
 export default function Login() {
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const { login, loginWithGoogle, loading } = useAuth()
   const navigate = useNavigate()
@@ -70,13 +71,16 @@ export default function Login() {
             <div className="relative">
               <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-text-dim" />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 placeholder="Enter password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                className="w-full pl-11"
+                className="w-full pl-11 pr-11"
                 required
               />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-text-dim">
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
             </div>
           </div>
 

@@ -103,8 +103,8 @@ export default function Profile() {
         </div>
       </div>
       {showLogoutConfirm && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setShowLogoutConfirm(false)}>
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 animate-slide-up" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-5" onClick={() => setShowLogoutConfirm(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="text-center">
               <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-3">
                 <LogOut size={24} className="text-red-500" />

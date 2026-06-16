@@ -79,14 +79,37 @@ export async function collectPayment({ amount, phone, reference, callbackUrl }) 
   }
 
   try {
-    console.log(`[Moolre] POST ${MOOLRE_BASE}/open/transact/payment`)
-    console.log(`[Moolre] Headers: X-API-USER=${env.moolre.apiUser ? env.moolre.apiUser.slice(0, 4) + '***' : 'MISSING'}, X-API-PUBKEY=${env.moolre.pubKey ? env.moolre.pubKey.slice(0, 6) + '***' : 'MISSING'}`)
-    console.log(`[Moolre] Payload:`, JSON.stringify(payload))
-    const { data } = await paymentClient.post('/open/transact/payment', payload)
-    console.log(`[Moolre] Collection response:`, JSON.stringify(data))
-    return data
+    const resp = await axios.post(`${MOOLRE_BASE}/open/transact/payment`, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-USER': env.moolre.apiUser,
+        'X-API-PUBKEY': env.moolre.pubKey,
+      },
+    })
+    console.log(`[Moolre] Collection response:`, JSON.stringify(resp.data))
+    return resp.data
   } catch (err) {
-    console.error(`[Moolre] Collection failed:`, err.response?.status, err.response?.data || err.message)
+    const rd = err.response?.data
+    console.error(`[Moolre] Collection failed:`, err.response?.status, typeof rd === 'string' ? rd.slice(0, 200) : JSON.stringify(rd))
+    if (rd?.code === 'AIN01') {
+      console.log(`[Moolre] AIN01 debug — trying with raw fetch...`)
+      try {
+        const fetchResp = await fetch(`${MOOLRE_BASE}/open/transact/payment`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-USER': env.moolre.apiUser,
+            'X-API-PUBKEY': env.moolre.pubKey,
+          },
+          body: JSON.stringify(payload),
+        })
+        const fetchData = await fetchResp.json()
+        console.log(`[Moolre] Fetch result:`, JSON.stringify(fetchData))
+        if (fetchData.status === 1) return fetchData
+      } catch (fetchErr) {
+        console.error(`[Moolre] Fetch also failed:`, fetchErr.message)
+      }
+    }
     throw err
   }
 }

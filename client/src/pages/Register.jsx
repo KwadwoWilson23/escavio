@@ -7,9 +7,10 @@ import { User, Mail, Phone, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react'
 export default function Register() {
   const [searchParams] = useSearchParams()
   const role = searchParams.get('role') || 'tenant'
-  const [form, setForm] = useState({ full_name: '', phone: '', email: '', password: '', ghana_card_number: '' })
+  const [form, setForm] = useState({ full_name: '', phone: '', email: '', password: '', confirm_password: '', ghana_card_number: '' })
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [error, setError] = useState('')
   const [googleLoading, setGoogleLoading] = useState(false)
   const { register, loginWithGoogle, loading } = useAuth()
@@ -22,8 +23,15 @@ export default function Register() {
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
+    if (form.password !== form.confirm_password) {
+      return setError('Passwords do not match')
+    }
+    if (form.password.length < 6) {
+      return setError('Password must be at least 6 characters')
+    }
     try {
-      await register({ ...form, role, terms_accepted: true })
+      const { confirm_password, ...submitData } = form
+      await register({ ...submitData, role, terms_accepted: true })
       navigate('/dashboard')
     } catch (err) {
       setError(err.response?.data?.error || 'Registration failed')
@@ -117,6 +125,27 @@ export default function Register() {
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-text-muted tracking-wider uppercase mb-2 block">Confirm Password</label>
+            <div className="relative">
+              <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-text-dim" />
+              <input
+                type={showConfirm ? 'text' : 'password'}
+                placeholder="Re-enter password"
+                value={form.confirm_password}
+                onChange={update('confirm_password')}
+                className="w-full pl-11 pr-11"
+                required
+              />
+              <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-4 top-1/2 -translate-y-1/2 text-text-dim">
+                {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+            {form.confirm_password && form.password !== form.confirm_password && (
+              <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
+            )}
           </div>
 
           <div>

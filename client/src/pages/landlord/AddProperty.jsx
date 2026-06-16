@@ -52,6 +52,8 @@ export default function AddProperty() {
     description: '',
     amenities: [],
   })
+  const [photos, setPhotos] = useState([])
+  const photoRef = useRef(null)
   const [docType, setDocType] = useState('land_title')
   const [docImage, setDocImage] = useState(null)
   const [docPreview, setDocPreview] = useState(null)
@@ -75,6 +77,23 @@ export default function AddProperty() {
     }))
   }
 
+  function handlePhotoAdd(e) {
+    const files = Array.from(e.target.files || [])
+    files.forEach(file => {
+      if (photos.length >= 4) return
+      const reader = new FileReader()
+      reader.onload = (ev) => {
+        setPhotos(prev => prev.length < 4 ? [...prev, ev.target.result] : prev)
+      }
+      reader.readAsDataURL(file)
+    })
+    e.target.value = ''
+  }
+
+  function removePhoto(index) {
+    setPhotos(prev => prev.filter((_, i) => i !== index))
+  }
+
   function handleDocCapture(e) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -95,6 +114,8 @@ export default function AddProperty() {
       const { data } = await api.post('/properties', {
         ...form,
         monthly_rent: Number(form.monthly_rent),
+        image_url: photos[0] || null,
+        images: photos,
       })
       setPropertyId(data.id)
       setSaving(false)
@@ -252,13 +273,59 @@ export default function AddProperty() {
       {step === 2 && (
         <div className="space-y-5">
           <div>
-            <label className="text-xs font-semibold text-text-muted tracking-wider uppercase mb-2 block">Description</label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold text-text-muted tracking-wider uppercase">Description</label>
+              <span className={`text-xs font-medium ${form.description.length > 200 ? 'text-red-500' : 'text-text-dim'}`}>
+                {form.description.length}/200
+              </span>
+            </div>
             <textarea
               placeholder="Describe your property... Location advantages, nearby landmarks, condition, etc."
               value={form.description}
-              onChange={update('description')}
+              onChange={e => {
+                if (e.target.value.length <= 200) setForm(prev => ({ ...prev, description: e.target.value }))
+              }}
               className="w-full min-h-[120px] resize-none"
               rows={4}
+              maxLength={200}
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-text-muted tracking-wider uppercase mb-3 block">
+              Property Photos <span className="text-text-dim font-normal">(up to 4)</span>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {photos.map((photo, i) => (
+                <div key={i} className="relative aspect-[4/3] rounded-xl overflow-hidden border border-surface-border">
+                  <img src={photo} alt={`Property ${i + 1}`} className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removePhoto(i)}
+                    className="absolute top-1.5 right-1.5 w-7 h-7 bg-black/60 rounded-full flex items-center justify-center"
+                  >
+                    <X size={14} className="text-white" />
+                  </button>
+                </div>
+              ))}
+              {photos.length < 4 && (
+                <button
+                  type="button"
+                  onClick={() => photoRef.current?.click()}
+                  className="aspect-[4/3] rounded-xl border-2 border-dashed border-surface-border bg-surface-card flex flex-col items-center justify-center gap-1.5 hover:border-primary/40 transition-colors"
+                >
+                  <Camera size={22} className="text-text-dim" />
+                  <span className="text-[11px] text-text-muted font-medium">Add Photo</span>
+                </button>
+              )}
+            </div>
+            <input
+              ref={photoRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handlePhotoAdd}
+              className="hidden"
             />
           </div>
 
@@ -303,7 +370,7 @@ export default function AddProperty() {
             onClick={async () => {
               setSaving(true)
               try {
-                await api.post('/properties', { ...form, monthly_rent: Number(form.monthly_rent) })
+                await api.post('/properties', { ...form, monthly_rent: Number(form.monthly_rent), image_url: photos[0] || null, images: photos })
                 navigate('/dashboard/properties')
               } catch { setSaving(false) }
             }}

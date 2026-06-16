@@ -20,7 +20,7 @@ router.post('/', authenticate, requireRole('landlord'), async (req, res) => {
       return res.status(403).json({ error: 'You need to complete identity verification before listing a property. Go to Profile to upload your documents.' })
     }
 
-    const { address, region, monthly_rent, bedrooms, property_type, description, amenities, image_url } = req.body
+    const { address, region, monthly_rent, bedrooms, property_type, description, amenities, image_url, images } = req.body
 
     const { data, error } = await supabase
       .from('properties')
@@ -31,9 +31,10 @@ router.post('/', authenticate, requireRole('landlord'), async (req, res) => {
         monthly_rent,
         bedrooms: bedrooms || 1,
         property_type: property_type || 'apartment',
-        description: description || null,
+        description: description ? description.slice(0, 200) : null,
         amenities: amenities || [],
-        image_url,
+        image_url: image_url || null,
+        images: images || [],
       })
       .select()
       .single()

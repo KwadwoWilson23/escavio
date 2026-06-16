@@ -42,6 +42,22 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', service: 'Escavio API', agent: 'Ama v1.0', timestamp: new Date().toISOString() })
 })
 
+app.get('/api/test-moolre', async (req, res) => {
+  const moolre = (await import('./config/env.js')).default.moolre
+  const payload = { type: 1, channel: 1, currency: 'GHS', payer: '233241234567', amount: '1', externalref: 'TEST-' + Date.now() }
+  try {
+    const resp = await fetch(`${moolre.baseUrl || 'https://api.moolre.com'}/open/transact/payment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-API-USER': moolre.apiUser, 'X-API-PUBKEY': moolre.pubKey },
+      body: JSON.stringify(payload),
+    })
+    const data = await resp.json()
+    res.json({ httpStatus: resp.status, moolreResponse: data, sentUser: moolre.apiUser, pubKeyLen: moolre.pubKey?.length, pubKeyEnd: moolre.pubKey?.slice(-6) })
+  } catch (err) {
+    res.json({ error: err.message })
+  }
+})
+
 app.listen(env.port, () => {
   console.log(`Escavio server running on port ${env.port}`)
   startReminderSchedule()

@@ -58,7 +58,7 @@ router.get('/transactions', authenticate, async (req, res) => {
 
 router.post('/deposit', authenticate, async (req, res) => {
   try {
-    const { amount } = req.body
+    const { amount, phone: altPhone } = req.body
 
     if (!amount || amount < 1) {
       return res.status(400).json({ error: 'Minimum deposit is GHS 1.00' })
@@ -74,8 +74,9 @@ router.post('/deposit', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Your account has been restricted. Contact support.' })
     }
 
-    if (!user?.phone) {
-      return res.status(400).json({ error: 'No phone number on your account' })
+    const depositPhone = altPhone ? normalizePhone(altPhone) : user?.phone
+    if (!depositPhone) {
+      return res.status(400).json({ error: 'No phone number provided' })
     }
 
     const wallet = await getOrCreateWallet(req.user.id)
@@ -92,7 +93,7 @@ router.post('/deposit', authenticate, async (req, res) => {
         type: 'deposit',
         amount: Number(amount),
         balance_after: Number(wallet.balance),
-        description: 'Wallet top-up via MoMo',
+        description: altPhone ? `Wallet top-up via MoMo (${normalizePhone(altPhone)})` : 'Wallet top-up via MoMo',
         reference,
         status: 'pending',
       })
@@ -104,7 +105,7 @@ router.post('/deposit', authenticate, async (req, res) => {
     try {
       await collectPayment({
         amount: Number(amount),
-        phone: user.phone,
+        phone: depositPhone,
         reference,
         callbackUrl,
       })
@@ -186,7 +187,7 @@ router.get('/deposit-status/:id', authenticate, async (req, res) => {
 
 router.post('/withdraw', authenticate, async (req, res) => {
   try {
-    const { amount } = req.body
+    const { amount, phone: altPhone } = req.body
 
     if (!amount || amount < 1) {
       return res.status(400).json({ error: 'Minimum withdrawal is GHS 1.00' })
@@ -198,8 +199,9 @@ router.post('/withdraw', authenticate, async (req, res) => {
       .eq('id', req.user.id)
       .single()
 
-    if (!user?.phone) {
-      return res.status(400).json({ error: 'No phone number on your account' })
+    const withdrawPhone = altPhone ? normalizePhone(altPhone) : user?.phone
+    if (!withdrawPhone) {
+      return res.status(400).json({ error: 'No phone number provided' })
     }
 
     const wallet = await getOrCreateWallet(req.user.id)
@@ -221,7 +223,7 @@ router.post('/withdraw', authenticate, async (req, res) => {
     try {
       await disbursePayment({
         amount: Number(amount),
-        phone: user.phone,
+        phone: withdrawPhone,
         reference,
       })
 

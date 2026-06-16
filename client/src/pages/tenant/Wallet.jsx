@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Wallet, ArrowDownLeft, ArrowUpRight, Lock, Loader2, CheckCircle, XCircle, RefreshCw } from 'lucide-react'
+import { Wallet, ArrowDownLeft, ArrowUpRight, Lock, Loader2, CheckCircle, XCircle, RefreshCw, Phone, Edit3 } from 'lucide-react'
 import GlassCard from '../../components/ui/GlassCard'
 import Badge from '../../components/ui/Badge'
 import NetworkLogo, { detectNetwork } from '../../components/ui/NetworkLogo'
@@ -19,11 +19,14 @@ export default function WalletPage() {
   const [step, setStep] = useState('idle')
   const [error, setError] = useState('')
   const [txnId, setTxnId] = useState(null)
+  const [altPhone, setAltPhone] = useState('')
+  const [useAltPhone, setUseAltPhone] = useState(false)
   const pollRef = useRef(null)
   const { user } = useAuth()
   const navigate = useNavigate()
 
-  const network = user?.phone ? detectNetwork(user.phone) : 'Mobile Money'
+  const activePhone = useAltPhone && altPhone.replace(/\D/g, '').length >= 9 ? altPhone : user?.phone
+  const network = activePhone ? detectNetwork(activePhone) : 'Mobile Money'
 
   useEffect(() => {
     loadWallet()
@@ -51,7 +54,11 @@ export default function WalletPage() {
     setError('')
 
     try {
-      const { data } = await api.post('/wallet/deposit', { amount: amt })
+      const payload = { amount: amt }
+      if (useAltPhone && altPhone.replace(/\D/g, '').length >= 9) {
+        payload.phone = altPhone
+      }
+      const { data } = await api.post('/wallet/deposit', payload)
       setTxnId(data.transaction_id)
       setStep('waiting')
 
@@ -90,7 +97,11 @@ export default function WalletPage() {
     setError('')
 
     try {
-      const { data } = await api.post('/wallet/withdraw', { amount: amt })
+      const payload = { amount: amt }
+      if (useAltPhone && altPhone.replace(/\D/g, '').length >= 9) {
+        payload.phone = altPhone
+      }
+      const { data } = await api.post('/wallet/withdraw', payload)
       setBalance(data.balance)
       setStep('withdraw-success')
       loadWallet()
@@ -100,6 +111,13 @@ export default function WalletPage() {
     }
   }
 
+  function cancelDeposit() {
+    if (pollRef.current) clearInterval(pollRef.current)
+    setStep('idle')
+    setError('')
+    setTxnId(null)
+  }
+
   function resetFlow() {
     if (pollRef.current) clearInterval(pollRef.current)
     setStep('idle')
@@ -107,6 +125,8 @@ export default function WalletPage() {
     setDepositAmount('')
     setWithdrawAmount('')
     setTxnId(null)
+    setAltPhone('')
+    setUseAltPhone(false)
     setTab('overview')
   }
 
@@ -158,6 +178,37 @@ export default function WalletPage() {
                 <NetworkLogo network={network} size={24} />
                 <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Top Up via {network}</h3>
               </div>
+
+              <div className="bg-surface rounded-xl p-3 flex items-center gap-3">
+                <Phone size={16} className="text-text-dim flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  {useAltPhone ? (
+                    <div className="flex gap-2 items-center">
+                      <span className="text-xs text-text-muted flex-shrink-0">+233</span>
+                      <input
+                        type="tel"
+                        placeholder="24 123 4567"
+                        value={altPhone}
+                        onChange={e => setAltPhone(e.target.value)}
+                        className="flex-1 text-sm bg-transparent border-none p-0 focus:ring-0 focus:outline-none"
+                        maxLength={12}
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-sm font-medium truncate">{user?.phone || 'No phone'}</p>
+                  )}
+                  <p className="text-[10px] text-text-dim">MoMo prompt will be sent to this number</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setUseAltPhone(!useAltPhone); setAltPhone('') }}
+                  className="text-xs text-primary font-semibold flex items-center gap-1 flex-shrink-0"
+                >
+                  <Edit3 size={12} />
+                  {useAltPhone ? 'Use mine' : 'Change'}
+                </button>
+              </div>
+
               <div>
                 <input
                   type="number"
@@ -198,6 +249,37 @@ export default function WalletPage() {
                 <NetworkLogo network={network} size={24} />
                 <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Withdraw to {network}</h3>
               </div>
+
+              <div className="bg-surface rounded-xl p-3 flex items-center gap-3">
+                <Phone size={16} className="text-text-dim flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  {useAltPhone ? (
+                    <div className="flex gap-2 items-center">
+                      <span className="text-xs text-text-muted flex-shrink-0">+233</span>
+                      <input
+                        type="tel"
+                        placeholder="24 123 4567"
+                        value={altPhone}
+                        onChange={e => setAltPhone(e.target.value)}
+                        className="flex-1 text-sm bg-transparent border-none p-0 focus:ring-0 focus:outline-none"
+                        maxLength={12}
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-sm font-medium truncate">{user?.phone || 'No phone'}</p>
+                  )}
+                  <p className="text-[10px] text-text-dim">Funds will be sent to this number</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setUseAltPhone(!useAltPhone); setAltPhone('') }}
+                  className="text-xs text-primary font-semibold flex items-center gap-1 flex-shrink-0"
+                >
+                  <Edit3 size={12} />
+                  {useAltPhone ? 'Use mine' : 'Change'}
+                </button>
+              </div>
+
               <div>
                 <input
                   type="number"
@@ -294,9 +376,15 @@ export default function WalletPage() {
           <div className="text-center">
             <h2 className="text-lg font-bold">Approve on Your Phone</h2>
             <p className="text-sm text-text-muted mt-2">
-              A {network} prompt of <strong>{formatGHS(Number(depositAmount))}</strong> has been sent. Enter your PIN to confirm.
+              A {network} prompt of <strong>{formatGHS(Number(depositAmount))}</strong> has been sent to <strong>{activePhone}</strong>. Enter your PIN to confirm.
             </p>
           </div>
+          <button
+            onClick={cancelDeposit}
+            className="text-sm text-red-500 font-semibold px-6 py-2.5 rounded-full border border-red-200 bg-red-50 flex items-center gap-2"
+          >
+            <XCircle size={16} /> Cancel Payment
+          </button>
         </div>
       )}
 

@@ -97,7 +97,7 @@ export default function Login() {
               setError('')
               try {
                 const data = await loginWithGoogle(response.credential)
-                navigate(data.isNew ? '/register' : '/dashboard')
+                navigate(data.isNew ? '/complete-profile' : '/dashboard')
               } catch (err) {
                 setError('Google sign-in failed. Try again.')
               }

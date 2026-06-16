@@ -6,11 +6,12 @@ import { User, Mail, Phone, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react'
 
 export default function Register() {
   const [searchParams] = useSearchParams()
-  const [role, setRole] = useState(searchParams.get('role') || 'tenant')
+  const role = searchParams.get('role') || 'tenant'
   const [form, setForm] = useState({ full_name: '', phone: '', email: '', password: '', ghana_card_number: '' })
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
+  const [googleLoading, setGoogleLoading] = useState(false)
   const { register, loginWithGoogle, loading } = useAuth()
   const navigate = useNavigate()
 
@@ -42,29 +43,17 @@ export default function Register() {
         <h1 className="text-xl font-bold mt-2 text-text-primary">Join the ecosystem</h1>
         <p className="text-text-muted text-sm mt-1">Secure your rental future with Escavio.</p>
 
-        <div className="flex mt-5 rounded-full bg-surface-card border border-surface-border overflow-hidden">
-          {['tenant', 'landlord'].map(r => (
-            <button
-              key={r}
-              onClick={() => setRole(r)}
-              className={`flex-1 py-3 text-sm font-semibold capitalize transition-all ${
-                role === r ? 'bg-primary text-white' : 'text-text-muted'
-              }`}
-            >
-              {r}
-            </button>
-          ))}
-        </div>
-
         <div className="flex justify-center mt-5">
           <GoogleLogin
             onSuccess={async (response) => {
               setError('')
+              setGoogleLoading(true)
               try {
-                await loginWithGoogle(response.credential)
-                navigate('/dashboard')
+                const data = await loginWithGoogle(response.credential)
+                navigate(data.isNew ? '/complete-profile' : '/dashboard')
               } catch (err) {
                 setError('Google sign-up failed. Try again.')
+                setGoogleLoading(false)
               }
             }}
             onError={() => setError('Google sign-up failed')}
@@ -147,8 +136,8 @@ export default function Register() {
             </span>
           </label>
 
-          <button type="submit" disabled={loading || !termsAccepted} className="btn-primary w-full flex items-center justify-center gap-2 text-lg mt-2 disabled:opacity-50">
-            {loading ? 'Creating...' : 'Create Account'} <ArrowRight size={20} />
+          <button type="submit" disabled={loading || googleLoading || !termsAccepted} className="btn-primary w-full flex items-center justify-center gap-2 text-lg mt-2 disabled:opacity-50">
+            {googleLoading ? 'Signing in...' : loading ? 'Creating...' : 'Create Account'} <ArrowRight size={20} />
           </button>
         </form>
 

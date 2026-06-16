@@ -70,9 +70,12 @@ app.get('/api/test-moolre', async (req, res) => {
     type: 1, channel: 1, currency: 'GHS', amount: '1', receiver: '233241234567', externalref: `TEST-DIS-${ts}`,
   })
 
-  results.sms = await tryApi('SMS', `${base}/open/sms/send`, smsHeaders, {
-    type: 1, senderid: 'Escavio', messages: [{ recipient: '233241234567', message: 'Escavio test SMS' }],
-  })
+  const smsBody = { type: 1, senderid: 'Escavio', messages: [{ recipient: '233241234567', message: 'Escavio test SMS' }] }
+  results.sms_vaskey = await tryApi('SMS-VASKEY', `${base}/open/sms/send`, smsHeaders, smsBody)
+  if (results.sms_vaskey?.data?.code === 'APY00') {
+    const smsAltHeaders = { 'Content-Type': 'application/json', 'X-API-USER': moolre.apiUser, 'X-API-KEY': moolre.apiKey }
+    results.sms_apikey = await tryApi('SMS-APIKEY', `${base}/open/sms/send`, smsAltHeaders, smsBody)
+  }
 
   results.ussd = { endpoint: '/api/ussd/callback', status: 'ready', note: 'Register callback URL in Moolre dashboard to activate' }
 

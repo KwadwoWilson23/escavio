@@ -45,17 +45,16 @@ app.get('/api/health', (req, res) => {
 app.get('/api/test-moolre', async (req, res) => {
   const moolre = (await import('./config/env.js')).default.moolre
   const payload = { type: 1, channel: 1, currency: 'GHS', payer: '233241234567', amount: '1', externalref: 'TEST-' + Date.now() }
-  try {
-    const resp = await fetch(`${moolre.baseUrl || 'https://api.moolre.com'}/open/transact/payment`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-API-USER': moolre.apiUser, 'X-API-PUBKEY': moolre.pubKey },
-      body: JSON.stringify(payload),
-    })
-    const data = await resp.json()
-    res.json({ httpStatus: resp.status, moolreResponse: data, sentUser: moolre.apiUser, pubKeyLen: moolre.pubKey?.length, pubKeyEnd: moolre.pubKey?.slice(-6) })
-  } catch (err) {
-    res.json({ error: err.message })
+  const headers = { 'Content-Type': 'application/json', 'X-API-USER': moolre.apiUser, 'X-API-PUBKEY': moolre.pubKey }
+  const results = {}
+  for (const base of ['https://api.moolre.com', 'https://sandbox.moolre.com']) {
+    try {
+      const resp = await fetch(`${base}/open/transact/payment`, { method: 'POST', headers, body: JSON.stringify({ ...payload, externalref: 'TEST-' + base.split('.')[0].split('//')[1] + '-' + Date.now() }) })
+      const text = await resp.text()
+      try { results[base] = { status: resp.status, data: JSON.parse(text) } } catch { results[base] = { status: resp.status, raw: text.slice(0, 300) } }
+    } catch (err) { results[base] = { error: err.message } }
   }
+  res.json({ sentUser: moolre.apiUser, pubKeyLen: moolre.pubKey?.length, pubKeyEnd: moolre.pubKey?.slice(-6), results })
 })
 
 app.listen(env.port, () => {

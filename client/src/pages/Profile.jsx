@@ -9,6 +9,7 @@ export default function Profile() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [showCard, setShowCard] = useState(false)
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
 
   function handleLogout() {
     logout()
@@ -76,7 +77,7 @@ export default function Profile() {
         <button className="flex-1 btn-primary flex items-center justify-center gap-2 py-3">
           <Edit2 size={16} /> Edit Profile
         </button>
-        <button onClick={handleLogout} className="flex-1 bg-red-50 border border-red-200 text-red-600 font-semibold py-3 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-all">
+        <button onClick={() => setShowLogoutConfirm(true)} className="flex-1 bg-red-50 border border-red-200 text-red-600 font-semibold py-3 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-all">
           <LogOut size={16} /> Logout
         </button>
       </div>
@@ -101,6 +102,33 @@ export default function Profile() {
           ))}
         </div>
       </div>
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setShowLogoutConfirm(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 animate-slide-up" onClick={e => e.stopPropagation()}>
+            <div className="text-center">
+              <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-3">
+                <LogOut size={24} className="text-red-500" />
+              </div>
+              <h3 className="text-lg font-bold text-text-primary">Log Out?</h3>
+              <p className="text-sm text-text-muted mt-1">Are you sure you want to log out of your Escavio account?</p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 py-3 rounded-full font-semibold text-sm bg-surface-card border border-surface-border text-text-primary active:scale-95 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLogout}
+                className="flex-1 py-3 rounded-full font-semibold text-sm bg-red-500 text-white active:scale-95 transition-all"
+              >
+                Yes, Log Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

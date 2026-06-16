@@ -28,9 +28,10 @@ const smsClient = axios.create({
   baseURL: MOOLRE_BASE,
   headers: {
     'Content-Type': 'application/json',
+    'X-API-USER': env.moolre.apiUser,
     ...(env.moolre.vasKey
       ? { 'X-API-VASKEY': env.moolre.vasKey }
-      : { 'X-API-USER': env.moolre.apiUser, 'X-API-KEY': env.moolre.apiKey }),
+      : { 'X-API-KEY': env.moolre.apiKey }),
   },
 })
 

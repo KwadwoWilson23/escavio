@@ -52,7 +52,7 @@ app.get('/api/test-moolre', async (req, res) => {
 
   const headers = { 'Content-Type': 'application/json', 'X-API-USER': moolre.apiUser, 'X-API-PUBKEY': moolre.pubKey }
   const transferHeaders = { 'Content-Type': 'application/json', 'X-API-USER': moolre.apiUser, 'X-API-KEY': moolre.apiKey }
-  const smsHeaders = { 'Content-Type': 'application/json', ...(moolre.vasKey ? { 'X-API-VASKEY': moolre.vasKey } : { 'X-API-USER': moolre.apiUser, 'X-API-KEY': moolre.apiKey }) }
+  const smsHeaders = { 'Content-Type': 'application/json', 'X-API-USER': moolre.apiUser, ...(moolre.vasKey ? { 'X-API-VASKEY': moolre.vasKey } : { 'X-API-KEY': moolre.apiKey }) }
 
   async function tryApi(name, url, hdrs, body) {
     try {

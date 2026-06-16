@@ -4,7 +4,14 @@ import env from '../config/env.js'
 
 const MOOLRE_BASE = env.moolre.baseUrl || 'https://api.moolre.com'
 
-console.log(`[Moolre] Config: baseUrl=${MOOLRE_BASE}, apiUser=${env.moolre.apiUser ? env.moolre.apiUser.slice(0, 4) + '***' : 'MISSING'}, pubKey=${env.moolre.pubKey ? env.moolre.pubKey.slice(0, 6) + '***' : 'MISSING'}, apiKey=${env.moolre.apiKey ? env.moolre.apiKey.slice(0, 6) + '***' : 'MISSING'}, vasKey=${env.moolre.vasKey ? env.moolre.vasKey.slice(0, 6) + '***' : 'MISSING'}`)
+console.log(`[Moolre] Config: baseUrl=${MOOLRE_BASE}`)
+console.log(`[Moolre] apiUser="${env.moolre.apiUser}" (len=${env.moolre.apiUser?.length || 0})`)
+console.log(`[Moolre] pubKey=${env.moolre.pubKey ? env.moolre.pubKey.slice(0, 10) + '...' + env.moolre.pubKey.slice(-6) : 'MISSING'} (len=${env.moolre.pubKey?.length || 0})`)
+console.log(`[Moolre] apiKey=${env.moolre.apiKey ? env.moolre.apiKey.slice(0, 10) + '...' + env.moolre.apiKey.slice(-6) : 'MISSING'} (len=${env.moolre.apiKey?.length || 0})`)
+console.log(`[Moolre] vasKey=${env.moolre.vasKey ? env.moolre.vasKey.slice(0, 10) + '...' + env.moolre.vasKey.slice(-6) : 'MISSING'} (len=${env.moolre.vasKey?.length || 0})`)
+if (env.moolre.pubKey && env.moolre.vasKey && env.moolre.pubKey.slice(0, 10) === env.moolre.vasKey.slice(0, 10)) {
+  console.warn(`[Moolre] WARNING: pubKey and vasKey start the same — they might be swapped!`)
+}
 
 const paymentClient = axios.create({
   baseURL: MOOLRE_BASE,
@@ -72,6 +79,9 @@ export async function collectPayment({ amount, phone, reference, callbackUrl }) 
   }
 
   try {
+    console.log(`[Moolre] POST ${MOOLRE_BASE}/open/transact/payment`)
+    console.log(`[Moolre] Headers: X-API-USER=${env.moolre.apiUser ? env.moolre.apiUser.slice(0, 4) + '***' : 'MISSING'}, X-API-PUBKEY=${env.moolre.pubKey ? env.moolre.pubKey.slice(0, 6) + '***' : 'MISSING'}`)
+    console.log(`[Moolre] Payload:`, JSON.stringify(payload))
     const { data } = await paymentClient.post('/open/transact/payment', payload)
     console.log(`[Moolre] Collection response:`, JSON.stringify(data))
     return data

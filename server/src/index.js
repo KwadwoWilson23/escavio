@@ -46,17 +46,37 @@ app.get('/api/health', (req, res) => {
 
 app.get('/api/test-moolre', async (req, res) => {
   const moolre = (await import('./config/env.js')).default.moolre
-  const payload = { type: 1, channel: 1, currency: 'GHS', payer: '233241234567', amount: '1', externalref: 'TEST-' + Date.now() }
+  const base = moolre.baseUrl || 'https://sandbox.moolre.com'
+  const ts = Date.now()
+  const results = { baseUrl: base, user: moolre.apiUser }
+
   const headers = { 'Content-Type': 'application/json', 'X-API-USER': moolre.apiUser, 'X-API-PUBKEY': moolre.pubKey }
-  const results = {}
-  for (const base of ['https://api.moolre.com', 'https://sandbox.moolre.com']) {
+  const transferHeaders = { 'Content-Type': 'application/json', 'X-API-USER': moolre.apiUser, 'X-API-KEY': moolre.apiKey }
+  const smsHeaders = { 'Content-Type': 'application/json', ...(moolre.vasKey ? { 'X-API-VASKEY': moolre.vasKey } : { 'X-API-USER': moolre.apiUser, 'X-API-KEY': moolre.apiKey }) }
+
+  async function tryApi(name, url, hdrs, body) {
     try {
-      const resp = await fetch(`${base}/open/transact/payment`, { method: 'POST', headers, body: JSON.stringify({ ...payload, externalref: 'TEST-' + base.split('.')[0].split('//')[1] + '-' + Date.now() }) })
-      const text = await resp.text()
-      try { results[base] = { status: resp.status, data: JSON.parse(text) } } catch { results[base] = { status: resp.status, raw: text.slice(0, 300) } }
-    } catch (err) { results[base] = { error: err.message } }
+      const r = await fetch(url, { method: 'POST', headers: hdrs, body: JSON.stringify(body) })
+      const text = await r.text()
+      try { return { status: r.status, data: JSON.parse(text) } } catch { return { status: r.status, raw: text.slice(0, 300) } }
+    } catch (err) { return { error: err.message } }
   }
-  res.json({ sentUser: moolre.apiUser, pubKeyLen: moolre.pubKey?.length, pubKeyEnd: moolre.pubKey?.slice(-6), results })
+
+  results.collection = await tryApi('Collection', `${base}/open/transact/payment`, headers, {
+    type: 1, channel: 1, currency: 'GHS', payer: '233241234567', amount: '1', externalref: `TEST-COL-${ts}`,
+  })
+
+  results.disbursement = await tryApi('Disbursement', `${base}/open/transact/transfer`, transferHeaders, {
+    type: 1, channel: 1, currency: 'GHS', amount: '1', receiver: '233241234567', externalref: `TEST-DIS-${ts}`,
+  })
+
+  results.sms = await tryApi('SMS', `${base}/open/sms/send`, smsHeaders, {
+    type: 1, senderid: 'Escavio', messages: [{ recipient: '233241234567', message: 'Escavio test SMS' }],
+  })
+
+  results.ussd = { endpoint: '/api/ussd/callback', status: 'ready', note: 'Register callback URL in Moolre dashboard to activate' }
+
+  res.json(results)
 })
 
 app.listen(env.port, () => {

@@ -4,14 +4,7 @@ import env from '../config/env.js'
 
 const MOOLRE_BASE = env.moolre.baseUrl || 'https://api.moolre.com'
 
-console.log(`[Moolre] Config: baseUrl=${MOOLRE_BASE}`)
-console.log(`[Moolre] apiUser="${env.moolre.apiUser}" (len=${env.moolre.apiUser?.length || 0})`)
-console.log(`[Moolre] pubKey=${env.moolre.pubKey ? env.moolre.pubKey.slice(0, 10) + '...' + env.moolre.pubKey.slice(-6) : 'MISSING'} (len=${env.moolre.pubKey?.length || 0})`)
-console.log(`[Moolre] apiKey=${env.moolre.apiKey ? env.moolre.apiKey.slice(0, 10) + '...' + env.moolre.apiKey.slice(-6) : 'MISSING'} (len=${env.moolre.apiKey?.length || 0})`)
-console.log(`[Moolre] vasKey=${env.moolre.vasKey ? env.moolre.vasKey.slice(0, 10) + '...' + env.moolre.vasKey.slice(-6) : 'MISSING'} (len=${env.moolre.vasKey?.length || 0})`)
-if (env.moolre.pubKey && env.moolre.vasKey && env.moolre.pubKey.slice(0, 10) === env.moolre.vasKey.slice(0, 10)) {
-  console.warn(`[Moolre] WARNING: pubKey and vasKey start the same — they might be swapped!`)
-}
+console.log(`[Moolre] Config: baseUrl=${MOOLRE_BASE}, user=${env.moolre.apiUser || 'MISSING'}`)
 
 const paymentClient = axios.create({
   baseURL: MOOLRE_BASE,
@@ -79,37 +72,11 @@ export async function collectPayment({ amount, phone, reference, callbackUrl }) 
   }
 
   try {
-    const resp = await axios.post(`${MOOLRE_BASE}/open/transact/payment`, payload, {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-USER': env.moolre.apiUser,
-        'X-API-PUBKEY': env.moolre.pubKey,
-      },
-    })
-    console.log(`[Moolre] Collection response:`, JSON.stringify(resp.data))
-    return resp.data
+    const { data } = await paymentClient.post('/open/transact/payment', payload)
+    console.log(`[Moolre] Collection response:`, JSON.stringify(data))
+    return data
   } catch (err) {
-    const rd = err.response?.data
-    console.error(`[Moolre] Collection failed:`, err.response?.status, typeof rd === 'string' ? rd.slice(0, 200) : JSON.stringify(rd))
-    if (rd?.code === 'AIN01') {
-      console.log(`[Moolre] AIN01 debug — trying with raw fetch...`)
-      try {
-        const fetchResp = await fetch(`${MOOLRE_BASE}/open/transact/payment`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-USER': env.moolre.apiUser,
-            'X-API-PUBKEY': env.moolre.pubKey,
-          },
-          body: JSON.stringify(payload),
-        })
-        const fetchData = await fetchResp.json()
-        console.log(`[Moolre] Fetch result:`, JSON.stringify(fetchData))
-        if (fetchData.status === 1) return fetchData
-      } catch (fetchErr) {
-        console.error(`[Moolre] Fetch also failed:`, fetchErr.message)
-      }
-    }
+    console.error(`[Moolre] Collection failed:`, err.response?.status, err.response?.data || err.message)
     throw err
   }
 }

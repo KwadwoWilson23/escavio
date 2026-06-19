@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import SplashScreen from './components/SplashScreen'
+import OnboardingFlow from './components/OnboardingFlow'
 import DashboardLayout from './components/layout/DashboardLayout'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
@@ -45,14 +46,22 @@ function DashboardHome() {
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem('escavio_splash_shown'))
+  const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('escavio_onboarded'))
+
   const handleSplashComplete = useCallback(() => {
     sessionStorage.setItem('escavio_splash_shown', '1')
     setShowSplash(false)
   }, [])
 
+  const handleOnboardingComplete = useCallback(() => {
+    localStorage.setItem('escavio_onboarded', '1')
+    setShowOnboarding(false)
+  }, [])
+
   return (
     <>
     {showSplash && <SplashScreen onComplete={handleSplashComplete} />}
+    {!showSplash && showOnboarding && <OnboardingFlow onComplete={handleOnboardingComplete} />}
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />

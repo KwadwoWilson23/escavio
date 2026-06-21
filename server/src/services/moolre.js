@@ -3,7 +3,9 @@ import env from '../config/env.js'
 
 const MOOLRE_BASE = env.moolre.baseUrl || 'https://api.moolre.com'
 
+const maskKey = (k) => k ? `${k.slice(0, 6)}...${k.slice(-4)} (${k.length} chars)` : 'MISSING'
 console.log(`[Moolre] Config: baseUrl=${MOOLRE_BASE}, user=${env.moolre.apiUser || 'MISSING'}`)
+console.log(`[Moolre] Keys: pubKey=${maskKey(env.moolre.pubKey)}, apiKey=${maskKey(env.moolre.apiKey)}`)
 
 const paymentClient = axios.create({
   baseURL: MOOLRE_BASE,

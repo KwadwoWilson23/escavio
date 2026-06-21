@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { supabase } from '../config/supabase.js'
 import { authenticate } from '../middleware/auth.js'
-import { collectPayment, checkTransactionStatus, normalizePhone } from '../services/moolre.js'
+import { collectPayment, checkPaymentStatus, parseTxStatus, normalizePhone } from '../services/moolre.js'
 import env from '../config/env.js'
 
 const router = Router()
@@ -208,9 +208,12 @@ router.get('/status/:id', authenticate, async (req, res) => {
     }
 
     if (payment.status === 'processing' || payment.status === 'pending') {
-      const moolreStatus = await checkTransactionStatus(payment.moolre_reference)
-      if (moolreStatus?.data?.status) {
-        const mapped = mapMoolreStatus(moolreStatus.data.status)
+      const moolreResult = await checkPaymentStatus(payment.moolre_reference)
+      const txstatus = moolreResult?.data?.txstatus
+      if (txstatus !== undefined) {
+        const mapped = parseTxStatus(txstatus) === 'success' ? 'success'
+          : parseTxStatus(txstatus) === 'failed' ? 'failed'
+          : 'processing'
         if (mapped !== payment.status) {
           await supabase
             .from('payments')
@@ -245,13 +248,5 @@ router.get('/lease/:id', authenticate, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch payments' })
   }
 })
-
-function mapMoolreStatus(moolreStatus) {
-  const s = String(moolreStatus).toLowerCase()
-  if (s === 'success' || s === 'completed' || s === 'successful') return 'success'
-  if (s === 'failed' || s === 'declined' || s === 'rejected') return 'failed'
-  if (s === 'pending' || s === 'processing' || s === 'initiated') return 'processing'
-  return 'processing'
-}
 
 export default router

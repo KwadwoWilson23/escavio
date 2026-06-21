@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { supabase } from '../config/supabase.js'
 import { authenticate } from '../middleware/auth.js'
-import { collectPayment, checkTransactionStatus, disbursePayment, normalizePhone } from '../services/moolre.js'
+import { collectPayment, checkPaymentStatus, disbursePayment, parseTxStatus, normalizePhone } from '../services/moolre.js'
 import env from '../config/env.js'
 
 const router = Router()
@@ -151,30 +151,33 @@ router.get('/deposit-status/:id', authenticate, async (req, res) => {
 
     if (txn.status === 'pending' && txn.reference) {
       try {
-        const moolreStatus = await checkTransactionStatus(txn.reference)
-        const s = String(moolreStatus?.data?.status || '').toLowerCase()
-        if (['success', 'successful', 'completed'].includes(s) && txn.status !== 'success') {
-          const wallet = await getOrCreateWallet(req.user.id)
-          const newBalance = Number(wallet.balance) + Number(txn.amount)
+        const moolreResult = await checkPaymentStatus(txn.reference)
+        const txstatus = moolreResult?.data?.txstatus
+        if (txstatus !== undefined) {
+          const mapped = parseTxStatus(txstatus)
+          if (mapped === 'success') {
+            const wallet = await getOrCreateWallet(req.user.id)
+            const newBalance = Number(wallet.balance) + Number(txn.amount)
 
-          await supabase
-            .from('wallets')
-            .update({ balance: newBalance, updated_at: new Date().toISOString() })
-            .eq('id', wallet.id)
+            await supabase
+              .from('wallets')
+              .update({ balance: newBalance, updated_at: new Date().toISOString() })
+              .eq('id', wallet.id)
 
-          await supabase
-            .from('wallet_transactions')
-            .update({ status: 'success', balance_after: newBalance })
-            .eq('id', txn.id)
+            await supabase
+              .from('wallet_transactions')
+              .update({ status: 'success', balance_after: newBalance })
+              .eq('id', txn.id)
 
-          return res.json({ ...txn, status: 'success', balance_after: newBalance })
-        }
-        if (['failed', 'declined', 'rejected'].includes(s)) {
-          await supabase
-            .from('wallet_transactions')
-            .update({ status: 'failed' })
-            .eq('id', txn.id)
-          return res.json({ ...txn, status: 'failed' })
+            return res.json({ ...txn, status: 'success', balance_after: newBalance })
+          }
+          if (mapped === 'failed') {
+            await supabase
+              .from('wallet_transactions')
+              .update({ status: 'failed' })
+              .eq('id', txn.id)
+            return res.json({ ...txn, status: 'failed' })
+          }
         }
       } catch {}
     }

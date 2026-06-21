@@ -1,5 +1,5 @@
 import { supabase } from '../config/supabase.js'
-import { disbursePayment, sendSMS } from './moolre.js'
+import { disbursePayment, validateName, sendSMS, parseTxStatus } from './moolre.js'
 import { notifyBoth } from './notify.js'
 
 const ESCAVIO_FEE_RATE = 0.01
@@ -56,12 +56,40 @@ export async function processDisbursement(lease) {
 
   console.log(`[Disbursement] Processing GHS ${disburseAmount} to ${landlord.phone} for lease ${lease.id}, mode: ${payout_mode}`)
 
+  const nameCheck = await validateName({ phone: landlord.phone })
+  if (nameCheck?.status === 1) {
+    console.log(`[Disbursement] Recipient confirmed: ${nameCheck.data}`)
+  } else {
+    console.warn(`[Disbursement] Name validation failed for ${landlord.phone}, proceeding anyway`)
+  }
+
   try {
     const moolreResult = await disbursePayment({
       amount: disburseAmount,
       phone: landlord.phone,
       reference,
     })
+
+    const txstatus = moolreResult?.data?.txstatus
+    const transferStatus = parseTxStatus(txstatus)
+
+    if (transferStatus === 'failed') {
+      console.error(`[Disbursement] Transfer rejected by Moolre: txstatus=${txstatus}`)
+      await supabase
+        .from('payments')
+        .insert({
+          lease_id: lease.id,
+          payer_id: null,
+          recipient_id: landlord_id,
+          amount: disburseAmount,
+          moolre_reference: reference,
+          type: 'landlord_disbursement',
+          status: 'failed',
+        })
+      return null
+    }
+
+    const paymentStatus = transferStatus === 'success' ? 'success' : 'processing'
 
     await supabase
       .from('payments')
@@ -74,8 +102,8 @@ export async function processDisbursement(lease) {
         escavio_fee: 0,
         moolre_reference: reference,
         type: 'landlord_disbursement',
-        status: 'success',
-        paid_at: new Date().toISOString(),
+        status: paymentStatus,
+        ...(paymentStatus === 'success' ? { paid_at: new Date().toISOString() } : {}),
       })
 
     const newBalance = escrow_balance - disburseAmount
@@ -93,13 +121,15 @@ export async function processDisbursement(lease) {
       .eq('id', lease.id)
 
     const address = lease.properties?.address || 'your property'
-    sendSMS({
-      phone: landlord.phone,
-      message: `Escavio: GHS ${disburseAmount.toFixed(2)} has been sent to your wallet for ${address}. Ref: ${reference}`,
-    }).catch(() => {})
+    if (paymentStatus === 'success') {
+      sendSMS({
+        phone: landlord.phone,
+        message: `Escavio: GHS ${disburseAmount.toFixed(2)} has been sent to your MoMo for ${address}. Ref: ${reference}`,
+      }).catch(() => {})
+    }
 
-    console.log(`[Disbursement] Success: GHS ${disburseAmount} to ${landlord.full_name}, ref: ${reference}`)
-    return { reference, amount: disburseAmount, moolre: moolreResult }
+    console.log(`[Disbursement] ${paymentStatus}: GHS ${disburseAmount} to ${landlord.full_name}, ref: ${reference}`)
+    return { reference, amount: disburseAmount, status: paymentStatus, moolre: moolreResult }
   } catch (err) {
     console.error('[Disbursement] Failed:', err.response?.status, err.response?.data || err.message)
 

@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { supabase } from '../config/supabase.js'
-import { sendSMS, verifyWebhookSignature } from '../services/moolre.js'
+import { sendSMS, parseTxStatus } from '../services/moolre.js'
 import { processDisbursement } from '../services/disbursement.js'
 import { sendPaymentReceipt } from '../services/whatsapp.js'
 import { notifyBoth } from '../services/notify.js'
@@ -10,27 +10,28 @@ const router = Router()
 
 router.post('/moolre', async (req, res) => {
   try {
-    const signature = req.headers['x-moolre-signature'] || req.headers['x-webhook-signature'] || ''
+    const payload = req.body
+    const d = payload.data || {}
 
-    if (signature && !verifyWebhookSignature(req.body, signature)) {
-      console.warn('[Webhook] Invalid signature, processing anyway for demo')
-    }
+    const ref = d.externalref || payload.externalref || payload.reference
+    const txstatus = d.txstatus ?? payload.txstatus ?? payload.status
+    const amount = d.amount || payload.amount
+    const transactionid = d.transactionid || payload.transactionid
+    const payer = d.payer || payload.payer
 
-    const { reference, externalref, status, amount, transactionid } = req.body
-    const ref = reference || externalref
-
-    console.log(`[Webhook] Received: ref=${ref}, status=${status}, amount=${amount}, txn=${transactionid}`)
+    console.log(`[Webhook] Received: ref=${ref}, txstatus=${txstatus}, amount=${amount}, txn=${transactionid}, payer=${payer}`)
+    console.log(`[Webhook] Raw payload:`, JSON.stringify(payload).slice(0, 500))
 
     if (!ref) {
       return res.json({ received: true, ignored: 'no reference' })
     }
 
-    const moolreStatus = String(status).toLowerCase()
-    const isSuccess = ['success', 'successful', 'completed'].includes(moolreStatus)
-    const isFailed = ['failed', 'declined', 'rejected', 'error'].includes(moolreStatus)
+    const status = parseTxStatus(txstatus)
+    const isSuccess = status === 'success'
+    const isFailed = status === 'failed'
 
     if (!isSuccess && !isFailed) {
-      console.log(`[Webhook] Intermediate status: ${status}, skipping`)
+      console.log(`[Webhook] Non-final status: txstatus=${txstatus} (${status}), skipping`)
       return res.json({ received: true, status: 'intermediate' })
     }
 
@@ -197,14 +198,20 @@ router.post('/moolre', async (req, res) => {
 
 router.post('/moolre-wallet', async (req, res) => {
   try {
-    const { reference, externalref, status, amount } = req.body
-    const ref = reference || externalref
+    const payload = req.body
+    const d = payload.data || {}
+
+    const ref = d.externalref || payload.externalref || payload.reference
+    const txstatus = d.txstatus ?? payload.txstatus ?? payload.status
+    const amount = d.amount || payload.amount
+
+    console.log(`[Webhook] Wallet callback: ref=${ref}, txstatus=${txstatus}, amount=${amount}`)
 
     if (!ref) return res.json({ received: true, ignored: 'no reference' })
 
-    const moolreStatus = String(status).toLowerCase()
-    const isSuccess = ['success', 'successful', 'completed'].includes(moolreStatus)
-    const isFailed = ['failed', 'declined', 'rejected', 'error'].includes(moolreStatus)
+    const status = parseTxStatus(txstatus)
+    const isSuccess = status === 'success'
+    const isFailed = status === 'failed'
 
     if (!isSuccess && !isFailed) {
       return res.json({ received: true, status: 'intermediate' })

@@ -46,13 +46,19 @@ app.get('/api/health', (req, res) => {
 
 app.get('/api/test-moolre', async (req, res) => {
   const moolre = (await import('./config/env.js')).default.moolre
-  const base = moolre.baseUrl || 'https://sandbox.moolre.com'
+  const base = moolre.baseUrl || 'https://api.moolre.com'
   const ts = Date.now()
-  const results = { baseUrl: base, user: moolre.apiUser }
+  const mask = (k) => k ? `${k.slice(0, 10)}...${k.slice(-6)} (${k.length}c)` : 'MISSING'
+  const results = {
+    baseUrl: base,
+    user: moolre.apiUser,
+    pubKey: mask(moolre.pubKey),
+    apiKey: mask(moolre.apiKey),
+    pubKeyHasWhitespace: moolre.pubKey !== moolre.pubKey?.trim(),
+    apiKeyHasWhitespace: moolre.apiKey !== moolre.apiKey?.trim(),
+  }
 
   const headers = { 'Content-Type': 'application/json', 'X-API-USER': moolre.apiUser, 'X-API-PUBKEY': moolre.pubKey }
-  const transferHeaders = { 'Content-Type': 'application/json', 'X-API-USER': moolre.apiUser, 'X-API-KEY': moolre.apiKey }
-  const smsHeaders = { 'Content-Type': 'application/json', 'X-API-USER': moolre.apiUser, ...(moolre.vasKey ? { 'X-API-VASKEY': moolre.vasKey } : { 'X-API-KEY': moolre.apiKey }) }
 
   async function tryApi(name, url, hdrs, body) {
     try {
@@ -63,21 +69,8 @@ app.get('/api/test-moolre', async (req, res) => {
   }
 
   results.collection = await tryApi('Collection', `${base}/open/transact/payment`, headers, {
-    type: 1, channel: 1, currency: 'GHS', payer: '233241234567', amount: '1', externalref: `TEST-COL-${ts}`,
+    type: 1, channel: 13, currency: 'GHS', payer: '233241234567', amount: '1', externalref: `TEST-COL-${ts}`,
   })
-
-  results.disbursement = await tryApi('Disbursement', `${base}/open/transact/transfer`, transferHeaders, {
-    type: 1, channel: 1, currency: 'GHS', amount: '1', receiver: '233241234567', externalref: `TEST-DIS-${ts}`,
-  })
-
-  const smsBody = { type: 1, senderid: 'Escavio', messages: [{ recipient: '233241234567', message: 'Escavio test SMS' }] }
-  results.sms_vaskey = await tryApi('SMS-VASKEY', `${base}/open/sms/send`, smsHeaders, smsBody)
-  if (results.sms_vaskey?.data?.code === 'APY00') {
-    const smsAltHeaders = { 'Content-Type': 'application/json', 'X-API-USER': moolre.apiUser, 'X-API-KEY': moolre.apiKey }
-    results.sms_apikey = await tryApi('SMS-APIKEY', `${base}/open/sms/send`, smsAltHeaders, smsBody)
-  }
-
-  results.ussd = { endpoint: '/api/ussd/callback', status: 'ready', note: 'Register callback URL in Moolre dashboard to activate' }
 
   res.json(results)
 })

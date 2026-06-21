@@ -76,7 +76,7 @@ export async function collectPayment({ amount, phone, reference, callbackUrl }) 
     console.log(`[Moolre] Collection response:`, JSON.stringify(data))
     return data
   } catch (err) {
-    console.error(`[Moolre] Collection failed:`, err.response?.status, err.response?.data || err.message)
+    console.error(`[Moolre] Collection failed:`, err.response?.status, truncateError(err.response?.data || err.message))
     throw err
   }
 }
@@ -95,7 +95,7 @@ export async function validateName({ phone }) {
     console.log(`[Moolre] Name validation for ${norm}:`, JSON.stringify(data))
     return data
   } catch (err) {
-    console.error(`[Moolre] Name validation failed:`, err.response?.status, err.response?.data || err.message)
+    console.error(`[Moolre] Name validation failed:`, err.response?.status, truncateError(err.response?.data || err.message))
     return null
   }
 }
@@ -118,9 +118,16 @@ export async function disbursePayment({ amount, phone, reference }) {
     console.log(`[Moolre] Transfer response:`, JSON.stringify(data))
     return data
   } catch (err) {
-    console.error(`[Moolre] Transfer failed:`, err.response?.status, err.response?.data || err.message)
+    console.error(`[Moolre] Transfer failed:`, err.response?.status, truncateError(err.response?.data || err.message))
     throw err
   }
+}
+
+function truncateError(data) {
+  if (!data) return 'no response'
+  const s = typeof data === 'string' ? data : JSON.stringify(data)
+  if (s.includes('<html') || s.includes('<!DOCTYPE')) return `HTML error page (${s.length} chars)`
+  return s.length > 200 ? s.slice(0, 200) + '...' : s
 }
 
 export async function checkPaymentStatus(reference) {
@@ -131,7 +138,7 @@ export async function checkPaymentStatus(reference) {
     console.log(`[Moolre] Payment status for ${reference}:`, JSON.stringify(data))
     return data
   } catch (err) {
-    console.error(`[Moolre] Payment status check failed:`, err.response?.status, err.response?.data || err.message)
+    console.error(`[Moolre] Payment status check failed:`, err.response?.status, truncateError(err.response?.data))
     return null
   }
 }
@@ -144,7 +151,7 @@ export async function checkTransferStatus(reference) {
     console.log(`[Moolre] Transfer status for ${reference}:`, JSON.stringify(data))
     return data
   } catch (err) {
-    console.error(`[Moolre] Transfer status check failed:`, err.response?.status, err.response?.data || err.message)
+    console.error(`[Moolre] Transfer status check failed:`, err.response?.status, truncateError(err.response?.data))
     return null
   }
 }
@@ -193,7 +200,7 @@ export async function sendSMS({ phone, message }) {
     console.log(`[Moolre] SMS sent to ${norm}:`, data?.code || data?.status)
     return data
   } catch (err) {
-    console.error(`[Moolre] SMS failed:`, err.response?.status, err.response?.data || err.message)
+    console.error(`[Moolre] SMS failed:`, err.response?.status, truncateError(err.response?.data || err.message))
     throw err
   }
 }

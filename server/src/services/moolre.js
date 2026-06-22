@@ -46,6 +46,12 @@ export function normalizePhone(phone) {
   return digits
 }
 
+function toLocalPhone(phone) {
+  const norm = normalizePhone(phone)
+  if (norm.startsWith('233') && norm.length === 12) return '0' + norm.slice(3)
+  return norm
+}
+
 export function detectChannel(phone) {
   const norm = normalizePhone(phone)
   const prefix = norm.slice(3, 5)
@@ -66,13 +72,14 @@ export async function collectPayment({ amount, phone, reference, callbackUrl }) 
   const norm = normalizePhone(phone)
   const channel = detectChannel(norm)
 
-  console.log(`[Moolre] Collection: GHS ${amount} from ${norm} via ${channel.name} (${channel.payCode}), ref: ${reference}`)
+  const local = toLocalPhone(norm)
+  console.log(`[Moolre] Collection: GHS ${amount} from ${local} via ${channel.name} (${channel.payCode}), ref: ${reference}`)
 
   const payload = {
     type: 1,
     channel: channel.payCode,
     currency: 'GHS',
-    payer: norm,
+    payer: local,
     amount: String(amount),
     externalref: reference,
     accountnumber: ACCOUNT_NUMBER,
@@ -96,13 +103,14 @@ export async function verifyPaymentOTP({ reference, otpcode, phone, amount }) {
   const norm = normalizePhone(phone)
   const channel = detectChannel(norm)
 
-  console.log(`[Moolre] OTP verify: ref=${reference}, phone=${norm}, otp=${otpcode?.slice(0, 2)}****`)
+  const local = toLocalPhone(norm)
+  console.log(`[Moolre] OTP verify: ref=${reference}, phone=${local}, otp=${otpcode?.slice(0, 2)}****`)
 
   const payload = {
     type: 1,
     channel: channel.payCode,
     currency: 'GHS',
-    payer: norm,
+    payer: local,
     externalref: reference,
     otpcode: String(otpcode),
     accountnumber: ACCOUNT_NUMBER,
@@ -129,7 +137,7 @@ export async function validateName({ phone }) {
       type: 1,
       channel: channel.transferCode,
       currency: 'GHS',
-      receiver: norm,
+      receiver: toLocalPhone(norm),
       accountnumber: ACCOUNT_NUMBER,
     })
     console.log(`[Moolre] Name validation for ${norm}:`, JSON.stringify(data))
@@ -144,7 +152,8 @@ export async function disbursePayment({ amount, phone, reference }) {
   const norm = normalizePhone(phone)
   const channel = detectChannel(norm)
 
-  console.log(`[Moolre] Transfer: GHS ${amount} to ${norm} via ${channel.name} (${channel.transferCode}), ref: ${reference}`)
+  const local = toLocalPhone(norm)
+  console.log(`[Moolre] Transfer: GHS ${amount} to ${local} via ${channel.name} (${channel.transferCode}), ref: ${reference}`)
 
   try {
     const { data } = await apiClient.post('/open/transact/transfer', {
@@ -152,7 +161,7 @@ export async function disbursePayment({ amount, phone, reference }) {
       channel: channel.transferCode,
       currency: 'GHS',
       amount: String(amount),
-      receiver: norm,
+      receiver: local,
       externalref: reference,
       accountnumber: ACCOUNT_NUMBER,
     })

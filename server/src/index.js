@@ -67,7 +67,7 @@ app.get('/api/test-moolre', async (req, res) => {
   }
 
   results.payment = await tryApi(`${base}/open/transact/payment`, headers, {
-    type: 1, channel: '13', currency: 'GHS', payer: '233504399802', amount: '1', externalref: `TEST-${ts}`, accountnumber: moolre.accountNumber,
+    type: 1, channel: '13', currency: 'GHS', payer: '0504399802', amount: '1', externalref: `TEST-${ts}`, accountnumber: moolre.accountNumber,
   })
 
   results.accountStatus = await tryApi(`${base}/open/account/status`, headers, {

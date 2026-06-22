@@ -111,8 +111,10 @@ export default function PayRent() {
         setStep('success')
       } else if (data.status === 'failed') {
         setOtpError(data.message || 'Verification failed. Please try again.')
+      } else if (data.status === 'invalid_otp') {
+        setOtpError(data.message || 'Invalid code. Check your latest SMS and try again.')
       } else if (data.status === 'otp_required') {
-        setOtpError('New code sent. Please enter the latest OTP.')
+        setOtpError(data.message || 'A new code has been sent. Enter the latest code.')
       } else {
         setStep('waiting')
         startPolling(paymentId)

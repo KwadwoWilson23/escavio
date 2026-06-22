@@ -283,8 +283,12 @@ router.post('/verify-otp', authenticate, async (req, res) => {
       return res.json({ status: 'pending', message: 'Phone verified. Processing deposit...', moolre: retryResult })
     }
 
+    if (moolreResult?.code === 'TP15') {
+      return res.json({ status: 'invalid_otp', message: 'Invalid verification code. Check your latest SMS and try again.' })
+    }
+
     if (moolreResult?.code === 'TP14') {
-      return res.json({ status: 'otp_required', message: 'Another OTP has been sent. Please try again.' })
+      return res.json({ status: 'otp_required', message: 'A new code has been sent to your phone. Enter the latest code.' })
     }
 
     const txstatus = moolreResult?.data?.txstatus

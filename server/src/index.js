@@ -44,38 +44,6 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', service: 'Escavio API', agent: 'Ama v1.0', timestamp: new Date().toISOString() })
 })
 
-app.get('/api/test-moolre', async (req, res) => {
-  const moolre = (await import('./config/env.js')).default.moolre
-  const base = moolre.baseUrl || 'https://api.moolre.com'
-  const ts = Date.now()
-  const mask = (k) => k ? `${k.slice(0, 20)}...${k.slice(-10)} (${k.length}c)` : 'MISSING'
-  const results = {
-    baseUrl: base,
-    user: moolre.apiUser,
-    apiKey: mask(moolre.apiKey),
-    accountNumber: moolre.accountNumber || 'MISSING',
-  }
-
-  const headers = { 'Content-Type': 'application/json', 'X-API-USER': moolre.apiUser, 'X-API-KEY': moolre.apiKey }
-
-  async function tryApi(url, hdrs, body) {
-    try {
-      const r = await fetch(url, { method: 'POST', headers: hdrs, body: JSON.stringify(body) })
-      const text = await r.text()
-      try { return { status: r.status, data: JSON.parse(text) } } catch { return { status: r.status, raw: text.slice(0, 300) } }
-    } catch (err) { return { error: err.message } }
-  }
-
-  results.payment = await tryApi(`${base}/open/transact/payment`, headers, {
-    type: 1, channel: '13', currency: 'GHS', payer: '0504399802', amount: '1', externalref: `TEST-${ts}`, accountnumber: moolre.accountNumber,
-  })
-
-  results.accountStatus = await tryApi(`${base}/open/account/status`, headers, {
-    type: 1, accountnumber: moolre.accountNumber,
-  })
-
-  res.json(results)
-})
 
 app.listen(env.port, () => {
   console.log(`Escavio server running on port ${env.port}`)

@@ -4,6 +4,7 @@ import { Wallet, ArrowDownLeft, ArrowUpRight, Lock, Loader2, CheckCircle, XCircl
 import GlassCard from '../../components/ui/GlassCard'
 import Badge from '../../components/ui/Badge'
 import NetworkLogo, { detectNetwork } from '../../components/ui/NetworkLogo'
+import OTPInput from '../../components/ui/OTPInput'
 import { formatGHS, formatDate } from '../../utils/format'
 import { useAuth } from '../../hooks/useAuth'
 import api from '../../services/api'
@@ -47,6 +48,33 @@ export default function WalletPage() {
     }
   }
 
+  const [otpLoading, setOtpLoading] = useState(false)
+  const [otpError, setOtpError] = useState('')
+
+  function startDepositPolling(id) {
+    let count = 0
+    pollRef.current = setInterval(async () => {
+      count++
+      try {
+        const { data: status } = await api.get(`/wallet/deposit-status/${id}`)
+        if (status.status === 'success') {
+          clearInterval(pollRef.current)
+          setBalance(status.balance_after)
+          setStep('success')
+          loadWallet()
+        } else if (status.status === 'failed') {
+          clearInterval(pollRef.current)
+          setStep('failed')
+          setError('Deposit was declined. Check your balance and try again.')
+        }
+      } catch {}
+      if (count >= 24) {
+        clearInterval(pollRef.current)
+        setStep('timeout')
+      }
+    }, 5000)
+  }
+
   async function handleDeposit() {
     const amt = Number(depositAmount)
     if (!amt || amt < 1) return setError('Enter at least GHS 1.00')
@@ -60,32 +88,37 @@ export default function WalletPage() {
       }
       const { data } = await api.post('/wallet/deposit', payload)
       setTxnId(data.transaction_id)
-      setStep('waiting')
-
-      let count = 0
-      pollRef.current = setInterval(async () => {
-        count++
-        try {
-          const { data: status } = await api.get(`/wallet/deposit-status/${data.transaction_id}`)
-          if (status.status === 'success') {
-            clearInterval(pollRef.current)
-            setBalance(status.balance_after)
-            setStep('success')
-            loadWallet()
-          } else if (status.status === 'failed') {
-            clearInterval(pollRef.current)
-            setStep('failed')
-            setError('Deposit was declined. Check your balance and try again.')
-          }
-        } catch {}
-        if (count >= 24) {
-          clearInterval(pollRef.current)
-          setStep('timeout')
-        }
-      }, 5000)
+      setStep('otp')
     } catch (err) {
       setError(err.response?.data?.error || 'Deposit failed')
       setStep('failed')
+    }
+  }
+
+  async function handleOTPSubmit(otp) {
+    setOtpLoading(true)
+    setOtpError('')
+
+    try {
+      const { data } = await api.post('/wallet/verify-otp', {
+        transaction_id: txnId,
+        otp,
+      })
+
+      if (data.status === 'success') {
+        setBalance(data.balance)
+        setStep('success')
+        loadWallet()
+      } else if (data.status === 'failed') {
+        setOtpError(data.message || 'Verification failed. Please try again.')
+      } else {
+        setStep('waiting')
+        startDepositPolling(txnId)
+      }
+    } catch (err) {
+      setOtpError(err.response?.data?.detail || err.response?.data?.error || 'Verification failed. Check the code and try again.')
+    } finally {
+      setOtpLoading(false)
     }
   }
 
@@ -367,6 +400,17 @@ export default function WalletPage() {
         </div>
       )}
 
+      {step === 'otp' && (
+        <OTPInput
+          phone={activePhone}
+          amount={depositAmount}
+          onSubmit={handleOTPSubmit}
+          onCancel={resetFlow}
+          loading={otpLoading}
+          error={otpError}
+        />
+      )}
+
       {step === 'waiting' && (
         <div className="flex flex-col items-center py-8 space-y-6">
           <div className="relative">
@@ -374,9 +418,9 @@ export default function WalletPage() {
             <div className="absolute rounded-full border-4 border-yellow-200 border-t-yellow-500 animate-spin" style={{ animationDuration: '2s', width: 84, height: 84, top: -6, left: -6 }} />
           </div>
           <div className="text-center">
-            <h2 className="text-lg font-bold">Approve on Your Phone</h2>
+            <h2 className="text-lg font-bold">Processing Payment</h2>
             <p className="text-sm text-text-muted mt-2">
-              A {network} prompt of <strong>{formatGHS(Number(depositAmount))}</strong> has been sent to <strong>{activePhone}</strong>. Enter your PIN to confirm.
+              Your payment of <strong>{formatGHS(Number(depositAmount))}</strong> is being processed. Please wait...
             </p>
           </div>
           <button

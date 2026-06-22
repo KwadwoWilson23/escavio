@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { supabase } from '../config/supabase.js'
 import { authenticate } from '../middleware/auth.js'
-import { collectPayment, checkPaymentStatus, parseTxStatus, normalizePhone } from '../services/moolre.js'
+import { collectPayment, checkPaymentStatus, parseTxStatus, normalizePhone, verifyPaymentOTP } from '../services/moolre.js'
 import env from '../config/env.js'
 
 const router = Router()
@@ -231,6 +231,81 @@ router.get('/status/:id', authenticate, async (req, res) => {
   } catch (err) {
     console.error('[Payments] Status check error:', err.message)
     res.status(500).json({ error: 'Failed to check payment status' })
+  }
+})
+
+router.post('/verify-otp', authenticate, async (req, res) => {
+  try {
+    const { payment_id, otp } = req.body
+
+    if (!payment_id || !otp) {
+      return res.status(400).json({ error: 'Payment ID and OTP are required' })
+    }
+
+    if (!/^\d{4,6}$/.test(otp)) {
+      return res.status(400).json({ error: 'OTP must be 4-6 digits' })
+    }
+
+    const { data: payment, error: payErr } = await supabase
+      .from('payments')
+      .select('*, leases(landlord_id, escrow_balance, monthly_amount, advance_months)')
+      .eq('id', payment_id)
+      .eq('payer_id', req.user.id)
+      .single()
+
+    if (payErr || !payment) {
+      return res.status(404).json({ error: 'Payment not found' })
+    }
+
+    if (!['pending', 'processing'].includes(payment.status)) {
+      return res.status(400).json({ error: `Payment is already ${payment.status}` })
+    }
+
+    const { data: user } = await supabase
+      .from('users')
+      .select('phone')
+      .eq('id', req.user.id)
+      .single()
+
+    const moolreResult = await verifyPaymentOTP({
+      reference: payment.moolre_reference,
+      otp,
+      phone: user?.phone,
+    })
+
+    const txstatus = moolreResult?.data?.txstatus
+    const mapped = parseTxStatus(txstatus)
+
+    if (mapped === 'success') {
+      await supabase
+        .from('payments')
+        .update({ status: 'success', paid_at: new Date().toISOString() })
+        .eq('id', payment.id)
+
+      if (payment.leases && payment.type !== 'security_deposit') {
+        const newEscrow = Number(payment.leases.escrow_balance || 0) + Number(payment.net_amount)
+        await supabase
+          .from('leases')
+          .update({ escrow_balance: newEscrow })
+          .eq('id', payment.lease_id)
+      }
+
+      return res.json({ status: 'success', message: 'Payment verified successfully', moolre: moolreResult })
+    }
+
+    if (mapped === 'failed') {
+      await supabase
+        .from('payments')
+        .update({ status: 'failed' })
+        .eq('id', payment.id)
+      return res.json({ status: 'failed', message: moolreResult?.message || 'Verification failed' })
+    }
+
+    res.json({ status: 'pending', message: 'Verification submitted, awaiting confirmation', moolre: moolreResult })
+  } catch (err) {
+    const msg = err.response?.data?.message || err.message
+    console.error('[Payments] OTP verify error:', msg)
+    res.status(502).json({ error: 'Verification failed', detail: msg })
   }
 })
 

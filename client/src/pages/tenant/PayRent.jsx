@@ -4,6 +4,7 @@ import { Calendar, Lock, CheckCircle, XCircle, Loader2, Phone, ArrowLeft, Refres
 import GlassCard from '../../components/ui/GlassCard'
 import Badge from '../../components/ui/Badge'
 import NetworkLogo, { detectNetwork } from '../../components/ui/NetworkLogo'
+import OTPInput from '../../components/ui/OTPInput'
 import { formatGHS } from '../../utils/format'
 import { useAuth } from '../../hooks/useAuth'
 import api from '../../services/api'
@@ -70,6 +71,9 @@ export default function PayRent() {
     }, 5000)
   }
 
+  const [otpLoading, setOtpLoading] = useState(false)
+  const [otpError, setOtpError] = useState('')
+
   async function handlePay() {
     if (!lease) return
     setStep('initiating')
@@ -79,12 +83,36 @@ export default function PayRent() {
       const { data } = await api.post('/payments/initiate', { lease_id: lease.id })
       setPaymentId(data.payment?.id)
       setReference(data.reference || '')
-      setStep('waiting')
-      startPolling(data.payment?.id)
+      setStep('otp')
     } catch (err) {
       const msg = err.response?.data?.detail || err.response?.data?.error || 'Could not initiate payment. Please try again.'
       setError(msg)
       setStep('failed')
+    }
+  }
+
+  async function handleOTPSubmit(otp) {
+    setOtpLoading(true)
+    setOtpError('')
+
+    try {
+      const { data } = await api.post('/payments/verify-otp', {
+        payment_id: paymentId,
+        otp,
+      })
+
+      if (data.status === 'success') {
+        setStep('success')
+      } else if (data.status === 'failed') {
+        setOtpError(data.message || 'Verification failed. Please try again.')
+      } else {
+        setStep('waiting')
+        startPolling(paymentId)
+      }
+    } catch (err) {
+      setOtpError(err.response?.data?.detail || err.response?.data?.error || 'Verification failed. Check the code and try again.')
+    } finally {
+      setOtpLoading(false)
     }
   }
 
@@ -191,6 +219,17 @@ export default function PayRent() {
           </div>
           <p className="text-text-muted font-medium">Connecting to {networkName}...</p>
         </div>
+      )}
+
+      {step === 'otp' && (
+        <OTPInput
+          phone={phone}
+          amount={amount}
+          onSubmit={handleOTPSubmit}
+          onCancel={handleRetry}
+          loading={otpLoading}
+          error={otpError}
+        />
       )}
 
       {step === 'waiting' && (

@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { supabase } from '../config/supabase.js'
 import { authenticate } from '../middleware/auth.js'
-import { collectPayment, checkPaymentStatus, disbursePayment, parseTxStatus, normalizePhone } from '../services/moolre.js'
+import { collectPayment, checkPaymentStatus, disbursePayment, parseTxStatus, normalizePhone, verifyPaymentOTP } from '../services/moolre.js'
 import env from '../config/env.js'
 
 const router = Router()
@@ -185,6 +185,81 @@ router.get('/deposit-status/:id', authenticate, async (req, res) => {
     res.json(txn)
   } catch (err) {
     res.status(500).json({ error: 'Failed to check deposit status' })
+  }
+})
+
+router.post('/verify-otp', authenticate, async (req, res) => {
+  try {
+    const { transaction_id, otp } = req.body
+
+    if (!transaction_id || !otp) {
+      return res.status(400).json({ error: 'Transaction ID and OTP are required' })
+    }
+
+    if (!/^\d{4,6}$/.test(otp)) {
+      return res.status(400).json({ error: 'OTP must be 4-6 digits' })
+    }
+
+    const { data: txn, error: txnErr } = await supabase
+      .from('wallet_transactions')
+      .select('*')
+      .eq('id', transaction_id)
+      .eq('user_id', req.user.id)
+      .single()
+
+    if (txnErr || !txn) {
+      return res.status(404).json({ error: 'Transaction not found' })
+    }
+
+    if (!['pending', 'processing'].includes(txn.status)) {
+      return res.status(400).json({ error: `Transaction is already ${txn.status}` })
+    }
+
+    const { data: user } = await supabase
+      .from('users')
+      .select('phone')
+      .eq('id', req.user.id)
+      .single()
+
+    const moolreResult = await verifyPaymentOTP({
+      reference: txn.reference,
+      otp,
+      phone: user?.phone,
+    })
+
+    const txstatus = moolreResult?.data?.txstatus
+    const mapped = parseTxStatus(txstatus)
+
+    if (mapped === 'success') {
+      const wallet = await getOrCreateWallet(req.user.id)
+      const newBalance = Number(wallet.balance) + Number(txn.amount)
+
+      await supabase
+        .from('wallets')
+        .update({ balance: newBalance, updated_at: new Date().toISOString() })
+        .eq('id', wallet.id)
+
+      await supabase
+        .from('wallet_transactions')
+        .update({ status: 'success', balance_after: newBalance })
+        .eq('id', txn.id)
+
+      return res.json({ status: 'success', message: 'Deposit verified', balance: newBalance })
+    }
+
+    if (mapped === 'failed') {
+      await supabase
+        .from('wallet_transactions')
+        .update({ status: 'failed' })
+        .eq('id', txn.id)
+      return res.json({ status: 'failed', message: moolreResult?.message || 'Verification failed' })
+    }
+
+    res.json({ status: 'pending', message: 'Verification submitted, awaiting confirmation', moolre: moolreResult })
+  } catch (err) {
+    const msg = err.response?.data?.message || err.message
+    console.error('[Wallet] OTP verify error:', msg)
+    res.status(502).json({ error: 'Verification failed', detail: msg })
   }
 })
 

@@ -207,6 +207,29 @@ export async function sendSMS({ phone, message }) {
   }
 }
 
+export async function verifyPaymentOTP({ reference, otp, phone }) {
+  const norm = normalizePhone(phone)
+  const channel = detectChannel(norm)
+
+  console.log(`[Moolre] OTP verify: ref=${reference}, phone=${norm}, otp=${otp?.slice(0, 2)}****`)
+
+  try {
+    const { data } = await paymentClient.post('/open/transact/payment', {
+      type: 1,
+      channel: channel.code,
+      currency: 'GHS',
+      payer: norm,
+      externalref: reference,
+      otp: String(otp),
+    })
+    console.log(`[Moolre] OTP verify response:`, JSON.stringify(data))
+    return data
+  } catch (err) {
+    console.error(`[Moolre] OTP verify failed:`, err.response?.status, truncateError(err.response?.data || err.message))
+    throw err
+  }
+}
+
 export function verifyWebhookSecret(payload, expectedSecret) {
   const payloadSecret = payload?.data?.secret
   if (!payloadSecret || !expectedSecret) return false

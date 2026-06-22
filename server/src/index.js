@@ -52,11 +52,11 @@ app.get('/api/test-moolre', async (req, res) => {
   const results = {
     baseUrl: base,
     user: moolre.apiUser,
-    pubKey: mask(moolre.pubKey),
     apiKey: mask(moolre.apiKey),
+    accountNumber: moolre.accountNumber || 'MISSING',
   }
 
-  const headers = { 'Content-Type': 'application/json', 'X-API-USER': moolre.apiUser, 'X-API-PUBKEY': moolre.pubKey }
+  const headers = { 'Content-Type': 'application/json', 'X-API-USER': moolre.apiUser, 'X-API-KEY': moolre.apiKey }
 
   async function tryApi(url, hdrs, body) {
     try {
@@ -66,35 +66,15 @@ app.get('/api/test-moolre', async (req, res) => {
     } catch (err) { return { error: err.message } }
   }
 
-  results.envKey = await tryApi(`${base}/open/transact/payment`, headers, {
-    type: 1, channel: 13, currency: 'GHS', payer: '233504399802', amount: '1', externalref: `TEST-${ts}`,
+  results.payment = await tryApi(`${base}/open/transact/payment`, headers, {
+    type: 1, channel: '13', currency: 'GHS', payer: '233504399802', amount: '1', externalref: `TEST-${ts}`, accountnumber: moolre.accountNumber,
+  })
+
+  results.accountStatus = await tryApi(`${base}/open/account/status`, headers, {
+    type: 1, accountnumber: moolre.accountNumber,
   })
 
   res.json(results)
-})
-
-app.post('/api/test-moolre', async (req, res) => {
-  const { user, pubkey } = req.body
-  if (!user || !pubkey) return res.status(400).json({ error: 'Send { user, pubkey } in body' })
-
-  const base = 'https://api.moolre.com'
-  const ts = Date.now()
-  const mask = (k) => `${k.slice(0, 20)}...${k.slice(-10)} (${k.length}c)`
-
-  const headers = { 'Content-Type': 'application/json', 'X-API-USER': user.trim(), 'X-API-PUBKEY': pubkey.trim() }
-
-  try {
-    const r = await fetch(`${base}/open/transact/payment`, {
-      method: 'POST', headers,
-      body: JSON.stringify({ type: 1, channel: 13, currency: 'GHS', payer: '233504399802', amount: '1', externalref: `TEST-${ts}` }),
-    })
-    const text = await r.text()
-    let data
-    try { data = JSON.parse(text) } catch { data = text.slice(0, 300) }
-    res.json({ user: user.trim(), pubkey: mask(pubkey.trim()), result: { status: r.status, data } })
-  } catch (err) {
-    res.json({ error: err.message })
-  }
 })
 
 app.listen(env.port, () => {

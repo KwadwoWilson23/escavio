@@ -14,6 +14,7 @@ export default {
     pubKey: process.env.MOOLRE_API_PUBKEY?.trim(),
     vasKey: process.env.MOOLRE_API_VASKEY?.trim(),
     webhookSecret: process.env.MOOLRE_WEBHOOK_SECRET?.trim(),
+    accountNumber: process.env.MOOLRE_ACCOUNT_NUMBER?.trim(),
   },
   googleClientId: process.env.GOOGLE_CLIENT_ID,
   whatsappNumber: process.env.WHATSAPP_BUSINESS_NUMBER,

@@ -76,18 +76,23 @@ router.post('/initiate', authenticate, async (req, res) => {
         callbackUrl,
       })
 
+      const otpRequired = moolreResult?.code === 'TP14'
+
       await supabase
         .from('payments')
-        .update({ status: 'processing' })
+        .update({ status: otpRequired ? 'pending' : 'processing' })
         .eq('id', payment.id)
 
       res.status(201).json({
-        payment: { ...payment, status: 'processing' },
+        payment: { ...payment, status: otpRequired ? 'pending' : 'processing' },
         reference,
         fee: escavioFee,
         netAmount,
+        otp_required: otpRequired,
         moolre: moolreResult,
-        message: 'Payment initiated. Check your phone for the MoMo approval prompt.',
+        message: otpRequired
+          ? 'OTP sent to your phone. Enter the code to proceed.'
+          : 'Payment initiated. Check your phone for the MoMo approval prompt.',
       })
     } catch (err) {
       const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message
@@ -269,37 +274,57 @@ router.post('/verify-otp', authenticate, async (req, res) => {
 
     const moolreResult = await verifyPaymentOTP({
       reference: payment.moolre_reference,
-      otp,
+      otpcode: otp,
       phone: user?.phone,
+      amount: payment.amount,
     })
 
-    const txstatus = moolreResult?.data?.txstatus
-    const mapped = parseTxStatus(txstatus)
-
-    if (mapped === 'success') {
+    if (moolreResult?.code === 'TR099') {
       await supabase
         .from('payments')
-        .update({ status: 'success', paid_at: new Date().toISOString() })
+        .update({ status: 'processing' })
         .eq('id', payment.id)
 
-      if (payment.leases && payment.type !== 'security_deposit') {
-        const newEscrow = Number(payment.leases.escrow_balance || 0) + Number(payment.net_amount)
+      return res.json({ status: 'pending', message: 'OTP verified. Approve the MoMo prompt on your phone.', moolre: moolreResult })
+    }
+
+    if (moolreResult?.code === 'TP14') {
+      return res.json({ status: 'otp_required', message: 'Another OTP has been sent. Please try again.' })
+    }
+
+    const txstatus = moolreResult?.data?.txstatus
+    if (txstatus !== undefined) {
+      const mapped = parseTxStatus(txstatus)
+      if (mapped === 'success') {
         await supabase
-          .from('leases')
-          .update({ escrow_balance: newEscrow })
-          .eq('id', payment.lease_id)
+          .from('payments')
+          .update({ status: 'success', paid_at: new Date().toISOString() })
+          .eq('id', payment.id)
+
+        if (payment.leases && payment.type !== 'security_deposit') {
+          const newEscrow = Number(payment.leases.escrow_balance || 0) + Number(payment.net_amount)
+          await supabase
+            .from('leases')
+            .update({ escrow_balance: newEscrow })
+            .eq('id', payment.lease_id)
+        }
+
+        return res.json({ status: 'success', message: 'Payment verified successfully', moolre: moolreResult })
       }
 
-      return res.json({ status: 'success', message: 'Payment verified successfully', moolre: moolreResult })
+      if (mapped === 'failed') {
+        await supabase
+          .from('payments')
+          .update({ status: 'failed' })
+          .eq('id', payment.id)
+        return res.json({ status: 'failed', message: moolreResult?.message || 'Verification failed' })
+      }
     }
 
-    if (mapped === 'failed') {
-      await supabase
-        .from('payments')
-        .update({ status: 'failed' })
-        .eq('id', payment.id)
-      return res.json({ status: 'failed', message: moolreResult?.message || 'Verification failed' })
-    }
+    await supabase
+      .from('payments')
+      .update({ status: 'processing' })
+      .eq('id', payment.id)
 
     res.json({ status: 'pending', message: 'Verification submitted, awaiting confirmation', moolre: moolreResult })
   } catch (err) {

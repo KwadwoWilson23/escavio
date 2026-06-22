@@ -88,7 +88,13 @@ export default function WalletPage() {
       }
       const { data } = await api.post('/wallet/deposit', payload)
       setTxnId(data.transaction_id)
-      setStep('otp')
+
+      if (data.otp_required) {
+        setStep('otp')
+      } else {
+        setStep('waiting')
+        startDepositPolling(data.transaction_id)
+      }
     } catch (err) {
       setError(err.response?.data?.error || 'Deposit failed')
       setStep('failed')
@@ -111,6 +117,8 @@ export default function WalletPage() {
         loadWallet()
       } else if (data.status === 'failed') {
         setOtpError(data.message || 'Verification failed. Please try again.')
+      } else if (data.status === 'otp_required') {
+        setOtpError('New code sent. Please enter the latest OTP.')
       } else {
         setStep('waiting')
         startDepositPolling(txnId)

@@ -83,7 +83,13 @@ export default function PayRent() {
       const { data } = await api.post('/payments/initiate', { lease_id: lease.id })
       setPaymentId(data.payment?.id)
       setReference(data.reference || '')
-      setStep('otp')
+
+      if (data.otp_required) {
+        setStep('otp')
+      } else {
+        setStep('waiting')
+        startPolling(data.payment?.id)
+      }
     } catch (err) {
       const msg = err.response?.data?.detail || err.response?.data?.error || 'Could not initiate payment. Please try again.'
       setError(msg)
@@ -105,6 +111,8 @@ export default function PayRent() {
         setStep('success')
       } else if (data.status === 'failed') {
         setOtpError(data.message || 'Verification failed. Please try again.')
+      } else if (data.status === 'otp_required') {
+        setOtpError('New code sent. Please enter the latest OTP.')
       } else {
         setStep('waiting')
         startPolling(paymentId)

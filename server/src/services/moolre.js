@@ -2,26 +2,27 @@ import axios from 'axios'
 import env from '../config/env.js'
 
 const MOOLRE_BASE = env.moolre.baseUrl || 'https://api.moolre.com'
+const ACCOUNT_NUMBER = env.moolre.accountNumber
 
 const maskKey = (k) => k ? `${k.slice(0, 6)}...${k.slice(-4)} (${k.length} chars)` : 'MISSING'
-console.log(`[Moolre] Config: baseUrl=${MOOLRE_BASE}, user=${env.moolre.apiUser || 'MISSING'}`)
-console.log(`[Moolre] Keys: pubKey=${maskKey(env.moolre.pubKey)}, apiKey=${maskKey(env.moolre.apiKey)}`)
+console.log(`[Moolre] Config: baseUrl=${MOOLRE_BASE}, user=${env.moolre.apiUser || 'MISSING'}, acct=${ACCOUNT_NUMBER || 'MISSING'}`)
+console.log(`[Moolre] Keys: apiKey=${maskKey(env.moolre.apiKey)}, pubKey=${maskKey(env.moolre.pubKey)}`)
 
-const paymentClient = axios.create({
-  baseURL: MOOLRE_BASE,
-  headers: {
-    'Content-Type': 'application/json',
-    'X-API-USER': env.moolre.apiUser,
-    'X-API-PUBKEY': env.moolre.pubKey,
-  },
-})
-
-const transferClient = axios.create({
+const apiClient = axios.create({
   baseURL: MOOLRE_BASE,
   headers: {
     'Content-Type': 'application/json',
     'X-API-USER': env.moolre.apiUser,
     'X-API-KEY': env.moolre.apiKey,
+  },
+})
+
+const pubClient = axios.create({
+  baseURL: MOOLRE_BASE,
+  headers: {
+    'Content-Type': 'application/json',
+    'X-API-USER': env.moolre.apiUser,
+    'X-API-PUBKEY': env.moolre.pubKey,
   },
 })
 
@@ -48,25 +49,33 @@ export function normalizePhone(phone) {
 export function detectChannel(phone) {
   const norm = normalizePhone(phone)
   const prefix = norm.slice(3, 5)
-  if (['24', '25', '53', '54', '55', '59'].includes(prefix)) return { name: 'MTN', code: 13 }
-  if (['20', '50'].includes(prefix)) return { name: 'Telecel', code: 6 }
-  if (['26', '27', '56', '57'].includes(prefix)) return { name: 'AT', code: 7 }
-  return { name: 'MTN', code: 13 }
+  if (['24', '25', '53', '54', '55', '59'].includes(prefix)) return { name: 'MTN', payCode: '13', transferCode: '1' }
+  if (['20', '50'].includes(prefix)) return { name: 'Telecel', payCode: '6', transferCode: '6' }
+  if (['26', '27', '56', '57'].includes(prefix)) return { name: 'AT', payCode: '7', transferCode: '7' }
+  return { name: 'MTN', payCode: '13', transferCode: '1' }
+}
+
+function truncateError(data) {
+  if (!data) return 'no response'
+  const s = typeof data === 'string' ? data : JSON.stringify(data)
+  if (s.includes('<html') || s.includes('<!DOCTYPE')) return `HTML error page (${s.length} chars)`
+  return s.length > 200 ? s.slice(0, 200) + '...' : s
 }
 
 export async function collectPayment({ amount, phone, reference, callbackUrl }) {
   const norm = normalizePhone(phone)
   const channel = detectChannel(norm)
 
-  console.log(`[Moolre] Collection: GHS ${amount} from ${norm} via ${channel.name} (${channel.code}), ref: ${reference}`)
+  console.log(`[Moolre] Collection: GHS ${amount} from ${norm} via ${channel.name} (${channel.payCode}), ref: ${reference}`)
 
   const payload = {
     type: 1,
-    channel: channel.code,
+    channel: channel.payCode,
     currency: 'GHS',
     payer: norm,
     amount: String(amount),
     externalref: reference,
+    accountnumber: ACCOUNT_NUMBER,
   }
 
   if (callbackUrl) {
@@ -74,11 +83,39 @@ export async function collectPayment({ amount, phone, reference, callbackUrl }) 
   }
 
   try {
-    const { data } = await paymentClient.post('/open/transact/payment', payload)
+    const { data } = await apiClient.post('/open/transact/payment', payload)
     console.log(`[Moolre] Collection response:`, JSON.stringify(data))
     return data
   } catch (err) {
     console.error(`[Moolre] Collection failed:`, err.response?.status, truncateError(err.response?.data || err.message))
+    throw err
+  }
+}
+
+export async function verifyPaymentOTP({ reference, otpcode, phone, amount }) {
+  const norm = normalizePhone(phone)
+  const channel = detectChannel(norm)
+
+  console.log(`[Moolre] OTP verify: ref=${reference}, phone=${norm}, otp=${otpcode?.slice(0, 2)}****`)
+
+  const payload = {
+    type: 1,
+    channel: channel.payCode,
+    currency: 'GHS',
+    payer: norm,
+    externalref: reference,
+    otpcode: String(otpcode),
+    accountnumber: ACCOUNT_NUMBER,
+  }
+
+  if (amount) payload.amount = String(amount)
+
+  try {
+    const { data } = await apiClient.post('/open/transact/payment', payload)
+    console.log(`[Moolre] OTP verify response:`, JSON.stringify(data))
+    return data
+  } catch (err) {
+    console.error(`[Moolre] OTP verify failed:`, err.response?.status, truncateError(err.response?.data || err.message))
     throw err
   }
 }
@@ -88,11 +125,12 @@ export async function validateName({ phone }) {
   const channel = detectChannel(norm)
 
   try {
-    const { data } = await transferClient.post('/open/transact/validate', {
+    const { data } = await apiClient.post('/open/transact/validate', {
       type: 1,
-      channel: channel.code,
+      channel: channel.transferCode,
       currency: 'GHS',
       receiver: norm,
+      accountnumber: ACCOUNT_NUMBER,
     })
     console.log(`[Moolre] Name validation for ${norm}:`, JSON.stringify(data))
     return data
@@ -106,16 +144,17 @@ export async function disbursePayment({ amount, phone, reference }) {
   const norm = normalizePhone(phone)
   const channel = detectChannel(norm)
 
-  console.log(`[Moolre] Transfer: GHS ${amount} to ${norm} via ${channel.name} (${channel.code}), ref: ${reference}`)
+  console.log(`[Moolre] Transfer: GHS ${amount} to ${norm} via ${channel.name} (${channel.transferCode}), ref: ${reference}`)
 
   try {
-    const { data } = await transferClient.post('/open/transact/transfer', {
+    const { data } = await apiClient.post('/open/transact/transfer', {
       type: 1,
-      channel: channel.code,
+      channel: channel.transferCode,
       currency: 'GHS',
       amount: String(amount),
       receiver: norm,
       externalref: reference,
+      accountnumber: ACCOUNT_NUMBER,
     })
     console.log(`[Moolre] Transfer response:`, JSON.stringify(data))
     return data
@@ -125,17 +164,13 @@ export async function disbursePayment({ amount, phone, reference }) {
   }
 }
 
-function truncateError(data) {
-  if (!data) return 'no response'
-  const s = typeof data === 'string' ? data : JSON.stringify(data)
-  if (s.includes('<html') || s.includes('<!DOCTYPE')) return `HTML error page (${s.length} chars)`
-  return s.length > 200 ? s.slice(0, 200) + '...' : s
-}
-
 export async function checkPaymentStatus(reference) {
   try {
-    const { data } = await paymentClient.post('/open/transact/status', {
-      externalref: reference,
+    const { data } = await pubClient.post('/open/transact/status', {
+      type: 1,
+      idtype: '1',
+      id: reference,
+      accountnumber: ACCOUNT_NUMBER,
     })
     console.log(`[Moolre] Payment status for ${reference}:`, JSON.stringify(data))
     return data
@@ -147,8 +182,11 @@ export async function checkPaymentStatus(reference) {
 
 export async function checkTransferStatus(reference) {
   try {
-    const { data } = await transferClient.post('/open/transact/status', {
-      externalref: reference,
+    const { data } = await apiClient.post('/open/transact/status', {
+      type: 1,
+      idtype: '1',
+      id: reference,
+      accountnumber: ACCOUNT_NUMBER,
     })
     console.log(`[Moolre] Transfer status for ${reference}:`, JSON.stringify(data))
     return data
@@ -169,17 +207,20 @@ export function parseTxStatus(txstatus) {
   return 'pending'
 }
 
-export async function createPaymentId({ phone, amount }) {
+export async function createPaymentId({ phone, name, amount }) {
   const norm = normalizePhone(phone)
 
   const payload = {
     type: 2,
     phone: norm,
+    name: name || 'Customer',
+    currency: 'GHS',
+    accountnumber: ACCOUNT_NUMBER,
   }
   if (amount) payload.amount = String(amount)
 
   try {
-    const { data } = await paymentClient.post('/open/account/create', payload)
+    const { data } = await pubClient.post('/open/account/create', payload)
     console.log(`[Moolre] Payment ID created for ${norm}:`, JSON.stringify(data))
     return data
   } catch (err) {
@@ -207,26 +248,16 @@ export async function sendSMS({ phone, message }) {
   }
 }
 
-export async function verifyPaymentOTP({ reference, otp, phone }) {
-  const norm = normalizePhone(phone)
-  const channel = detectChannel(norm)
-
-  console.log(`[Moolre] OTP verify: ref=${reference}, phone=${norm}, otp=${otp?.slice(0, 2)}****`)
-
+export async function checkAccountStatus() {
   try {
-    const { data } = await paymentClient.post('/open/transact/payment', {
+    const { data } = await apiClient.post('/open/account/status', {
       type: 1,
-      channel: channel.code,
-      currency: 'GHS',
-      payer: norm,
-      externalref: reference,
-      otp: String(otp),
+      accountnumber: ACCOUNT_NUMBER,
     })
-    console.log(`[Moolre] OTP verify response:`, JSON.stringify(data))
     return data
   } catch (err) {
-    console.error(`[Moolre] OTP verify failed:`, err.response?.status, truncateError(err.response?.data || err.message))
-    throw err
+    console.error(`[Moolre] Account status failed:`, err.response?.status, truncateError(err.response?.data))
+    return null
   }
 }
 

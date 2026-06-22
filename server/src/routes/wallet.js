@@ -103,12 +103,14 @@ router.post('/deposit', authenticate, async (req, res) => {
     if (txnErr) throw txnErr
 
     try {
-      await collectPayment({
+      const moolreResult = await collectPayment({
         amount: Number(amount),
         phone: depositPhone,
         reference,
         callbackUrl,
       })
+
+      const otpRequired = moolreResult?.code === 'TP14'
 
       await supabase
         .from('wallet_transactions')
@@ -119,7 +121,11 @@ router.post('/deposit', authenticate, async (req, res) => {
         transaction_id: txn.id,
         reference,
         amount: Number(amount),
-        message: 'Deposit initiated. Check your phone for the MoMo approval prompt.',
+        otp_required: otpRequired,
+        moolre: moolreResult,
+        message: otpRequired
+          ? 'OTP sent to your phone. Enter the code to proceed.'
+          : 'Deposit initiated. Check your phone for the MoMo approval prompt.',
       })
     } catch (err) {
       await supabase
@@ -223,37 +229,58 @@ router.post('/verify-otp', authenticate, async (req, res) => {
 
     const moolreResult = await verifyPaymentOTP({
       reference: txn.reference,
-      otp,
+      otpcode: otp,
       phone: user?.phone,
+      amount: txn.amount,
     })
 
+    if (moolreResult?.code === 'TR099') {
+      await supabase
+        .from('wallet_transactions')
+        .update({ status: 'processing' })
+        .eq('id', txn.id)
+
+      return res.json({ status: 'pending', message: 'OTP verified. Approve the MoMo prompt on your phone.', moolre: moolreResult })
+    }
+
+    if (moolreResult?.code === 'TP14') {
+      return res.json({ status: 'otp_required', message: 'Another OTP has been sent. Please try again.' })
+    }
+
     const txstatus = moolreResult?.data?.txstatus
-    const mapped = parseTxStatus(txstatus)
+    if (txstatus !== undefined) {
+      const mapped = parseTxStatus(txstatus)
 
-    if (mapped === 'success') {
-      const wallet = await getOrCreateWallet(req.user.id)
-      const newBalance = Number(wallet.balance) + Number(txn.amount)
+      if (mapped === 'success') {
+        const wallet = await getOrCreateWallet(req.user.id)
+        const newBalance = Number(wallet.balance) + Number(txn.amount)
 
-      await supabase
-        .from('wallets')
-        .update({ balance: newBalance, updated_at: new Date().toISOString() })
-        .eq('id', wallet.id)
+        await supabase
+          .from('wallets')
+          .update({ balance: newBalance, updated_at: new Date().toISOString() })
+          .eq('id', wallet.id)
 
-      await supabase
-        .from('wallet_transactions')
-        .update({ status: 'success', balance_after: newBalance })
-        .eq('id', txn.id)
+        await supabase
+          .from('wallet_transactions')
+          .update({ status: 'success', balance_after: newBalance })
+          .eq('id', txn.id)
 
-      return res.json({ status: 'success', message: 'Deposit verified', balance: newBalance })
+        return res.json({ status: 'success', message: 'Deposit verified', balance: newBalance })
+      }
+
+      if (mapped === 'failed') {
+        await supabase
+          .from('wallet_transactions')
+          .update({ status: 'failed' })
+          .eq('id', txn.id)
+        return res.json({ status: 'failed', message: moolreResult?.message || 'Verification failed' })
+      }
     }
 
-    if (mapped === 'failed') {
-      await supabase
-        .from('wallet_transactions')
-        .update({ status: 'failed' })
-        .eq('id', txn.id)
-      return res.json({ status: 'failed', message: moolreResult?.message || 'Verification failed' })
-    }
+    await supabase
+      .from('wallet_transactions')
+      .update({ status: 'processing' })
+      .eq('id', txn.id)
 
     res.json({ status: 'pending', message: 'Verification submitted, awaiting confirmation', moolre: moolreResult })
   } catch (err) {

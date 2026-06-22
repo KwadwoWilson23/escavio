@@ -289,8 +289,7 @@ router.post('/verify-otp', authenticate, async (req, res) => {
     }
 
     if (moolreResult?.code === 'TP17') {
-      console.log(`[Payments] Phone verified (TP17), re-initiating payment ${payment.moolre_reference}`)
-      const newRef = `${payment.moolre_reference}-R`
+      console.log(`[Payments] Phone verified (TP17), re-initiating payment with same ref ${payment.moolre_reference}`)
       const callbackUrl = env.appBaseUrl !== 'http://localhost:5000'
         ? `${env.appBaseUrl}/api/webhooks/moolre`
         : undefined
@@ -298,17 +297,32 @@ router.post('/verify-otp', authenticate, async (req, res) => {
       const retryResult = await collectPayment({
         amount: payment.amount,
         phone: user?.phone,
-        reference: newRef,
+        reference: payment.moolre_reference,
         callbackUrl,
       })
 
+      console.log(`[Payments] Re-initiate result:`, JSON.stringify(retryResult))
+
       await supabase
         .from('payments')
-        .update({ status: 'processing', moolre_reference: newRef })
+        .update({ status: 'processing' })
         .eq('id', payment.id)
 
       if (retryResult?.code === 'TR099') {
         return res.json({ status: 'pending', message: 'Phone verified! Approve the MoMo prompt on your phone.', moolre: retryResult })
+      }
+
+      if (retryResult?.code === 'TP13') {
+        const newRef = `${payment.moolre_reference}-${Date.now().toString(36)}`
+        console.log(`[Payments] Duplicate ref, retrying with ${newRef}`)
+        const retry2 = await collectPayment({ amount: payment.amount, phone: user?.phone, reference: newRef, callbackUrl })
+        console.log(`[Payments] Retry2 result:`, JSON.stringify(retry2))
+        await supabase.from('payments').update({ moolre_reference: newRef }).eq('id', payment.id)
+
+        if (retry2?.code === 'TR099') {
+          return res.json({ status: 'pending', message: 'Phone verified! Approve the MoMo prompt on your phone.', moolre: retry2 })
+        }
+        return res.json({ status: 'pending', message: 'Phone verified. Processing payment...', moolre: retry2 })
       }
 
       return res.json({ status: 'pending', message: 'Phone verified. Processing payment...', moolre: retryResult })

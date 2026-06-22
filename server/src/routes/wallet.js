@@ -243,6 +243,32 @@ router.post('/verify-otp', authenticate, async (req, res) => {
       return res.json({ status: 'pending', message: 'OTP verified. Approve the MoMo prompt on your phone.', moolre: moolreResult })
     }
 
+    if (moolreResult?.code === 'TP17') {
+      console.log(`[Wallet] Phone verified (TP17), re-initiating deposit ${txn.reference}`)
+      const newRef = `${txn.reference}-R`
+      const callbackUrl = env.appBaseUrl !== 'http://localhost:5000'
+        ? `${env.appBaseUrl}/api/webhooks/moolre-wallet`
+        : undefined
+
+      const retryResult = await collectPayment({
+        amount: Number(txn.amount),
+        phone: user?.phone,
+        reference: newRef,
+        callbackUrl,
+      })
+
+      await supabase
+        .from('wallet_transactions')
+        .update({ status: 'processing', reference: newRef })
+        .eq('id', txn.id)
+
+      if (retryResult?.code === 'TR099') {
+        return res.json({ status: 'pending', message: 'Phone verified! Approve the MoMo prompt on your phone.', moolre: retryResult })
+      }
+
+      return res.json({ status: 'pending', message: 'Phone verified. Processing deposit...', moolre: retryResult })
+    }
+
     if (moolreResult?.code === 'TP14') {
       return res.json({ status: 'otp_required', message: 'Another OTP has been sent. Please try again.' })
     }

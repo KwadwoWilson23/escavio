@@ -1,5 +1,9 @@
 export default function GlassCard({ children, className = '', glow, onClick }) {
-  const glowClass = glow === 'primary' ? 'border-primary/30 shadow-md shadow-primary/5' : glow === 'success' ? 'border-accent-success/30' : ''
+  const glowClass =
+    glow === 'primary' ? 'border-primary/30 shadow-md shadow-primary/5' :
+    glow === 'success' ? 'border-accent-success/30 shadow-md shadow-green-500/5' :
+    ''
+
   return (
     <div
       onClick={onClick}

@@ -11,6 +11,11 @@
     background-color: #ffffff;
     color: #0f172a;
   }
+  @media (min-width: 1024px) {
+    body {
+      background-color: #f1f5f9;
+    }
+  }
   input, select, textarea {
     @apply bg-white border border-surface-border rounded-xl px-4 py-3 text-text-primary placeholder-text-dim outline-none transition-all duration-200 focus:border-primary focus:ring-2 focus:ring-primary/20;
   }
@@ -19,6 +24,24 @@
 @layer components {
   .glass-card {
     @apply bg-surface-card border border-surface-border rounded-2xl shadow-sm;
+  }
+  @media (min-width: 1024px) {
+    .glass-card {
+      @apply bg-white border-gray-200/60 shadow-sm;
+    }
+  }
+  .liquid-glass {
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+  .liquid-glass-heavy {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(40px) saturate(200%);
+    -webkit-backdrop-filter: blur(40px) saturate(200%);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.6);
   }
   .primary-glow {
     box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25);
@@ -31,5 +54,15 @@
   }
   .btn-ghost {
     @apply border border-surface-border text-text-muted font-medium py-3 px-5 rounded-full active:scale-95 transition-all duration-200 hover:border-text-muted;
+  }
+
+  .sidebar-link {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150;
+  }
+  .sidebar-link.active {
+    @apply bg-primary/10 text-primary;
+  }
+  .sidebar-link:not(.active) {
+    @apply text-text-muted hover:bg-surface-highlight hover:text-text-primary;
   }
 }

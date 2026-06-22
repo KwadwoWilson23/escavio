@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Wallet, ArrowDownLeft, ArrowUpRight, Lock, Loader2, CheckCircle, XCircle, RefreshCw, Phone, Edit3 } from 'lucide-react'
+import { Wallet, ArrowDownLeft, ArrowUpRight, Lock, Loader2, CheckCircle, XCircle, RefreshCw, Phone, Edit3, ChevronRight, Trash2, Clock } from 'lucide-react'
 import GlassCard from '../../components/ui/GlassCard'
 import Badge from '../../components/ui/Badge'
 import NetworkLogo, { detectNetwork } from '../../components/ui/NetworkLogo'
@@ -25,6 +25,8 @@ export default function WalletPage() {
   const pollRef = useRef(null)
   const { user } = useAuth()
   const navigate = useNavigate()
+
+  const [showAllTxns, setShowAllTxns] = useState(false)
 
   const activePhone = useAltPhone && altPhone.replace(/\D/g, '').length >= 9 ? altPhone : user?.phone
   const network = activePhone ? detectNetwork(activePhone) : 'Mobile Money'
@@ -171,6 +173,10 @@ export default function WalletPage() {
     setAltPhone('')
     setUseAltPhone(false)
     setTab('overview')
+  }
+
+  async function handleDeleteTxn(id) {
+    setTransactions(prev => prev.filter(t => t.id !== id))
   }
 
   const quickAmounts = [50, 100, 200, 500, 1000, 2000]
@@ -357,44 +363,40 @@ export default function WalletPage() {
 
           {tab === 'overview' && (
             <div>
-              <h3 className="font-bold text-sm mb-3">Recent Transactions</h3>
-              <div className="space-y-2">
-                {transactions.length === 0 && (
-                  <GlassCard className="text-center py-6">
-                    <Wallet size={32} className="text-text-dim mx-auto mb-2" />
-                    <p className="text-sm text-text-muted">No transactions yet</p>
-                    <p className="text-xs text-text-dim mt-1">Deposit funds to get started</p>
-                  </GlassCard>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-bold text-sm">Recent Transactions</h3>
+                {transactions.length > 3 && (
+                  <button
+                    onClick={() => setShowAllTxns(!showAllTxns)}
+                    className="text-xs text-primary font-semibold flex items-center gap-1"
+                  >
+                    {showAllTxns ? 'Show less' : 'View history'}
+                    <ChevronRight size={14} className={`transition-transform ${showAllTxns ? 'rotate-90' : ''}`} />
+                  </button>
                 )}
-                {transactions.slice(0, 10).map(txn => {
-                  const isDeposit = txn.type === 'deposit'
-                  const isWithdraw = txn.type === 'withdrawal'
-                  const isLock = txn.type === 'lock'
-                  return (
-                    <GlassCard key={txn.id} className="flex items-center gap-3">
-                      <div className={`w-9 h-9 rounded-full flex items-center justify-center ${
-                        isDeposit ? 'bg-green-50' : isLock ? 'bg-blue-50' : 'bg-red-50'
-                      }`}>
-                        {isDeposit ? <ArrowDownLeft size={16} className="text-green-600" />
-                          : isLock ? <Lock size={16} className="text-primary" />
-                          : <ArrowUpRight size={16} className="text-red-500" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate">{txn.description || txn.type}</p>
-                        <p className="text-[10px] text-text-dim">{formatDate(txn.created_at)}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className={`font-bold text-sm ${isDeposit ? 'text-green-600' : 'text-red-500'}`}>
-                          {isDeposit ? '+' : '-'}{formatGHS(txn.amount)}
-                        </p>
-                        <Badge variant={txn.status === 'success' ? 'success' : txn.status === 'pending' ? 'warning' : 'danger'}>
-                          {txn.status}
-                        </Badge>
-                      </div>
-                    </GlassCard>
-                  )
-                })}
               </div>
+
+              {transactions.length === 0 ? (
+                <GlassCard className="text-center py-6">
+                  <Wallet size={32} className="text-text-dim mx-auto mb-2" />
+                  <p className="text-sm text-text-muted">No transactions yet</p>
+                  <p className="text-xs text-text-dim mt-1">Deposit funds to get started</p>
+                </GlassCard>
+              ) : (
+                <div className="space-y-2">
+                  {(showAllTxns ? transactions : transactions.slice(0, 3)).map(txn => (
+                    <SwipeableTxn key={txn.id} txn={txn} onDelete={handleDeleteTxn} />
+                  ))}
+                  {!showAllTxns && transactions.length > 3 && (
+                    <button
+                      onClick={() => setShowAllTxns(true)}
+                      className="w-full py-2.5 text-xs text-text-muted font-medium flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-surface-border"
+                    >
+                      <Clock size={12} /> {transactions.length - 3} more transactions
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </>
@@ -491,6 +493,76 @@ export default function WalletPage() {
           <button onClick={resetFlow} className="btn-primary px-8">Back to Wallet</button>
         </div>
       )}
+    </div>
+  )
+}
+
+function SwipeableTxn({ txn, onDelete }) {
+  const [offsetX, setOffsetX] = useState(0)
+  const [swiping, setSwiping] = useState(false)
+  const startX = useRef(0)
+  const currentX = useRef(0)
+
+  const isDeposit = txn.type === 'deposit'
+  const isLock = txn.type === 'lock'
+
+  function handleTouchStart(e) {
+    startX.current = e.touches[0].clientX
+    currentX.current = startX.current
+    setSwiping(true)
+  }
+
+  function handleTouchMove(e) {
+    if (!swiping) return
+    currentX.current = e.touches[0].clientX
+    const diff = currentX.current - startX.current
+    if (diff < 0) setOffsetX(Math.max(diff, -80))
+  }
+
+  function handleTouchEnd() {
+    setSwiping(false)
+    if (offsetX < -50) {
+      setOffsetX(-80)
+    } else {
+      setOffsetX(0)
+    }
+  }
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl">
+      <div className="absolute inset-y-0 right-0 w-20 bg-red-500 flex items-center justify-center rounded-2xl">
+        <button onClick={() => onDelete(txn.id)} className="flex flex-col items-center gap-0.5 text-white">
+          <Trash2 size={16} />
+          <span className="text-[10px] font-medium">Delete</span>
+        </button>
+      </div>
+      <div
+        className="relative bg-surface-card border border-surface-border rounded-2xl px-4 py-3 flex items-center gap-3 transition-transform"
+        style={{ transform: `translateX(${offsetX}px)`, transition: swiping ? 'none' : 'transform 0.2s ease-out' }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
+          isDeposit ? 'bg-green-50' : isLock ? 'bg-blue-50' : 'bg-red-50'
+        }`}>
+          {isDeposit ? <ArrowDownLeft size={16} className="text-green-600" />
+            : isLock ? <Lock size={16} className="text-primary" />
+            : <ArrowUpRight size={16} className="text-red-500" />}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-sm truncate">{txn.description || txn.type}</p>
+          <p className="text-[10px] text-text-dim">{formatDate(txn.created_at)}</p>
+        </div>
+        <div className="text-right flex-shrink-0">
+          <p className={`font-bold text-sm ${isDeposit ? 'text-green-600' : 'text-red-500'}`}>
+            {isDeposit ? '+' : '-'}{formatGHS(txn.amount)}
+          </p>
+          <Badge variant={txn.status === 'success' ? 'success' : txn.status === 'pending' ? 'warning' : 'danger'}>
+            {txn.status}
+          </Badge>
+        </div>
+      </div>
     </div>
   )
 }

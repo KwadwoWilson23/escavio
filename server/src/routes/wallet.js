@@ -182,7 +182,7 @@ router.get('/deposit-status/:id', authenticate, async (req, res) => {
 
     if (!txn) return res.status(404).json({ error: 'Transaction not found' })
 
-    if (txn.status === 'pending' && txn.reference) {
+    if (['pending', 'processing'].includes(txn.status) && txn.reference) {
       try {
         const moolreResult = await checkPaymentStatus(txn.reference)
         const txstatus = moolreResult?.data?.txstatus

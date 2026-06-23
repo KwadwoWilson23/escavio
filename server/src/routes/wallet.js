@@ -83,6 +83,72 @@ router.get('/transactions', authenticate, async (req, res) => {
   }
 })
 
+router.post('/reconcile', authenticate, async (req, res) => {
+  try {
+    const wallet = await getOrCreateWallet(req.user.id)
+
+    const { data: stuck } = await supabase
+      .from('wallet_transactions')
+      .select('*')
+      .eq('wallet_id', wallet.id)
+      .eq('type', 'deposit')
+      .in('status', ['pending', 'processing'])
+      .order('created_at', { ascending: false })
+      .limit(10)
+
+    if (!stuck || stuck.length === 0) {
+      return res.json({ reconciled: 0, message: 'No stuck transactions found' })
+    }
+
+    let reconciled = 0
+    let currentBalance = Number(wallet.balance)
+
+    for (const txn of stuck) {
+      if (!txn.reference) continue
+      try {
+        const moolreResult = await checkPaymentStatus(txn.reference)
+        const txstatus = moolreResult?.data?.txstatus
+        if (txstatus === undefined) continue
+
+        const mapped = parseTxStatus(txstatus)
+
+        if (mapped === 'success') {
+          currentBalance += Number(txn.amount)
+          await supabase
+            .from('wallet_transactions')
+            .update({ status: 'success', balance_after: currentBalance })
+            .eq('id', txn.id)
+          reconciled++
+        } else if (mapped === 'failed') {
+          await supabase
+            .from('wallet_transactions')
+            .update({ status: 'failed' })
+            .eq('id', txn.id)
+          reconciled++
+        }
+      } catch {}
+    }
+
+    if (currentBalance !== Number(wallet.balance)) {
+      await supabase
+        .from('wallets')
+        .update({ balance: currentBalance, updated_at: new Date().toISOString() })
+        .eq('id', wallet.id)
+    }
+
+    res.json({
+      reconciled,
+      balance: currentBalance,
+      message: reconciled > 0
+        ? `${reconciled} transaction(s) updated. Your balance is now GHS ${currentBalance.toFixed(2)}.`
+        : 'All transactions checked — none needed updating.',
+    })
+  } catch (err) {
+    console.error('[Wallet] Reconcile error:', err.message)
+    res.status(500).json({ error: 'Reconciliation failed' })
+  }
+})
+
 router.post('/deposit', authenticate, async (req, res) => {
   try {
     const { amount, phone: altPhone } = req.body

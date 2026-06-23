@@ -191,13 +191,42 @@ export default function WalletPage() {
     setTransactions(prev => prev.filter(t => t.id !== id))
   }
 
+  const [reconciling, setReconciling] = useState(false)
+
+  async function handleReconcile() {
+    setReconciling(true)
+    try {
+      const { data } = await api.post('/wallet/reconcile')
+      if (data.reconciled > 0) {
+        setBalance(data.balance)
+        loadWallet()
+      }
+      setError('')
+      alert(data.message)
+    } catch {
+      alert('Could not check pending transactions. Try again.')
+    } finally {
+      setReconciling(false)
+    }
+  }
+
   const quickAmounts = [50, 100, 200, 500, 1000, 2000]
 
   if (loading) return <WalletSkeleton />
 
   return (
     <div className="space-y-5">
-      <h1 className="text-xl font-bold">My Wallet</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold">My Wallet</h1>
+        <button
+          onClick={handleReconcile}
+          disabled={reconciling}
+          className="text-xs text-primary font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/20 hover:bg-primary/5 disabled:opacity-50 transition-all"
+        >
+          <RefreshCw size={12} className={reconciling ? 'animate-spin' : ''} />
+          {reconciling ? 'Checking...' : 'Refresh'}
+        </button>
+      </div>
 
       <GlassCard glow="primary" className="text-center py-6">
         <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">Available Balance</span>
@@ -520,9 +549,29 @@ export default function WalletPage() {
           <Loader2 size={48} className="text-yellow-500" />
           <div className="text-center">
             <h2 className="text-xl font-bold">Still Processing</h2>
-            <p className="text-sm text-text-muted mt-2">Your deposit may still be processing. Check back shortly.</p>
+            <p className="text-sm text-text-muted mt-2">Your deposit may still be processing. Tap below to check with your provider.</p>
           </div>
-          <button onClick={resetFlow} className="btn-primary px-8">Back to Wallet</button>
+          <button
+            onClick={async () => {
+              setReconciling(true)
+              try {
+                const { data } = await api.post('/wallet/reconcile')
+                if (data.reconciled > 0) {
+                  setBalance(data.balance)
+                  setStep('success')
+                  loadWallet()
+                } else {
+                  alert(data.message)
+                }
+              } catch {} finally { setReconciling(false) }
+            }}
+            disabled={reconciling}
+            className="btn-primary px-8 flex items-center gap-2"
+          >
+            <RefreshCw size={16} className={reconciling ? 'animate-spin' : ''} />
+            {reconciling ? 'Checking...' : 'Check Payment Status'}
+          </button>
+          <button onClick={resetFlow} className="text-sm text-text-muted">Back to Wallet</button>
         </div>
       )}
     </div>

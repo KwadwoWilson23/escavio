@@ -36,9 +36,7 @@ export default function Sidebar() {
   return (
     <aside className="hidden lg:flex flex-col fixed left-0 top-0 bottom-0 w-[260px] bg-white border-r border-gray-200/80 z-50">
       <div className="px-6 h-16 flex items-center gap-2.5 border-b border-gray-100">
-        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-          <span className="text-white font-bold text-sm">E</span>
-        </div>
+        <img src="/favicon.svg" alt="Escavio" className="w-8 h-8 rounded-lg" />
         <span className="font-bold text-lg tracking-tight text-text-primary">Escavio</span>
       </div>
 

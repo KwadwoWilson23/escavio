@@ -1,7 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240">
-  <path d="M100 30 L170 65 L170 130 C170 180 140 210 100 225 C60 210 30 180 30 130 L30 65 Z" fill="white"/>
-  <path d="M100 6 L55 30 L145 30 Z" fill="#2563eb"/>
-  <rect x="90" y="6" width="20" height="16" fill="#2563eb"/>
-  <circle cx="100" cy="120" r="16" fill="#0b1120"/>
-  <path d="M92 120 L92 155 C92 160 96 164 100 164 C104 164 108 160 108 155 L108 120" fill="#0b1120"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 480" fill="none">
+  <!-- Dark background for standalone use -->
+  <rect width="400" height="480" rx="40" fill="#0B1120"/>
+
+  <!-- Shield body (white) -->
+  <path d="M200 60 L320 115 C320 115 325 120 325 130 L325 230 C325 310 270 360 200 390 C130 360 75 310 75 230 L75 130 C75 120 80 115 80 115 Z" fill="white"/>
+
+  <!-- Blue roof -->
+  <path d="M200 42 L145 72 L145 72 L80 105 L75 115 L200 60 L325 115 L320 105 L255 72 Z" fill="#2563EB"/>
+  <path d="M200 42 L260 75 L260 48 L230 48 L230 58 L200 42Z" fill="#2563EB"/>
+  <!-- Chimney -->
+  <rect x="252" y="48" width="16" height="32" fill="#2563EB"/>
+
+  <!-- Keyhole circle -->
+  <circle cx="200" cy="210" r="28" fill="#0B1120"/>
+
+  <!-- Keyhole slot -->
+  <path d="M188 210 L188 278 C188 285 193 290 200 290 C207 290 212 285 212 278 L212 210" fill="#0B1120"/>
+
+  <!-- Text "Escavio" -->
+  <text x="200" y="450" text-anchor="middle" font-family="DM Sans, Arial, sans-serif" font-weight="700" font-size="60" letter-spacing="1">
+    <tspan fill="#2563EB">E</tspan><tspan fill="white">scavio</tspan>
+  </text>
 </svg>

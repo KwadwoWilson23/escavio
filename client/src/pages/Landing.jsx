@@ -6,7 +6,7 @@ export default function Landing() {
     <div className="min-h-screen bg-white">
       <header className="fixed top-0 w-full z-50 bg-white/90 backdrop-blur-xl border-b border-surface-border px-5 h-16 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <img src="/logo.svg" alt="Escavio" className="w-8 h-8 rounded-lg object-contain" />
+          <img src="/favicon.svg" alt="Escavio" className="w-9 h-9 rounded-lg" />
           <span className="text-xl font-bold text-primary tracking-tight">Escavio</span>
         </div>
         <Link to="/login" className="text-sm text-primary font-semibold">Sign In</Link>

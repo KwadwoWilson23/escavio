@@ -42,7 +42,7 @@ export default function Register() {
     <div className="min-h-screen bg-white">
       <header className="px-5 pt-12 pb-4">
         <Link to="/" className="flex items-center gap-2">
-          <img src="/logo.svg" alt="Escavio" className="w-8 h-8 rounded-lg object-contain" />
+          <img src="/favicon.svg" alt="Escavio" className="w-9 h-9 rounded-lg" />
           <span className="text-xl font-bold text-primary">Escavio</span>
         </Link>
       </header>

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" fill="none">
+  <rect width="400" height="400" rx="80" fill="#0B1120"/>
+
+  <!-- Shield body (white) -->
+  <path d="M200 50 L330 110 C330 110 335 115 335 125 L335 225 C335 310 275 360 200 395 C125 360 65 310 65 225 L65 125 C65 115 70 110 70 110 Z" fill="white"/>
+
+  <!-- Blue roof -->
+  <path d="M200 30 L140 64 L70 100 L65 110 L200 50 L335 110 L330 100 L260 64 Z" fill="#2563EB"/>
+  <rect x="256" y="38" width="18" height="34" fill="#2563EB"/>
+
+  <!-- Keyhole circle -->
+  <circle cx="200" cy="205" r="30" fill="#0B1120"/>
+
+  <!-- Keyhole slot -->
+  <path d="M187 205 L187 280 C187 288 193 293 200 293 C207 293 213 288 213 280 L213 205" fill="#0B1120"/>
+</svg>

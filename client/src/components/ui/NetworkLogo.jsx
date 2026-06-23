@@ -1,58 +1,42 @@
-const LOGOS = {
-  mtn: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/93/New-mtn-logo.svg/1200px-New-mtn-logo.svg.png',
-  telecel: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/af/Vodafone_icon.svg/1200px-Vodafone_icon.svg.png',
-  at: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/ff/AirtelTigo_logo.svg/1200px-AirtelTigo_logo.svg.png',
-}
-
-function LogoImg({ src, alt, size, fallbackBg, fallbackText }) {
+export function MTNLogo({ size = 40 }) {
   return (
-    <div
-      className="rounded-full overflow-hidden flex items-center justify-center bg-white"
-      style={{ width: size, height: size }}
-    >
-      <img
-        src={src}
-        alt={alt}
-        className="w-full h-full object-contain p-1"
-        onError={(e) => {
-          e.target.style.display = 'none'
-          e.target.nextSibling.style.display = 'flex'
-        }}
-      />
-      <div
-        className="w-full h-full items-center justify-center text-white font-bold text-xs rounded-full"
-        style={{ display: 'none', backgroundColor: fallbackBg }}
-      >
-        {fallbackText}
-      </div>
-    </div>
+    <svg width={size} height={size} viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+      <rect width="120" height="120" rx="16" fill="#FFC800" />
+      <ellipse cx="60" cy="62" rx="46" ry="30" fill="#003478" />
+      <ellipse cx="60" cy="62" rx="42" ry="26" fill="none" stroke="#FFC800" strokeWidth="2" />
+      <text x="60" y="72" textAnchor="middle" fontFamily="Arial Black, Arial, sans-serif" fontWeight="900" fontSize="30" fill="#FFC800" letterSpacing="2">MTN</text>
+    </svg>
   )
 }
 
-export function MTNLogo({ size = 40 }) {
-  return <LogoImg src={LOGOS.mtn} alt="MTN MoMo" size={size} fallbackBg="#FFCC00" fallbackText="MTN" />
-}
-
 export function TelecelLogo({ size = 40 }) {
-  return <LogoImg src={LOGOS.telecel} alt="Telecel Cash" size={size} fallbackBg="#E60000" fallbackText="T" />
+  return (
+    <svg width={size} height={size} viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+      <rect width="120" height="120" rx="16" fill="#FFFFFF" />
+      <circle cx="60" cy="60" r="42" fill="#E30613" />
+      <text x="60" y="78" textAnchor="middle" fontFamily="Arial, sans-serif" fontWeight="900" fontSize="52" fill="#FFFFFF">t</text>
+    </svg>
+  )
 }
 
 export function AirtelTigoLogo({ size = 40 }) {
-  return <LogoImg src={LOGOS.at} alt="AirtelTigo" size={size} fallbackBg="#003478" fallbackText="AT" />
+  return (
+    <svg width={size} height={size} viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+      <rect width="120" height="120" rx="16" fill="#003478" />
+      <path d="M0 85 Q60 65 120 85 L120 120 L0 120 Z" fill="#E30613" />
+      <text x="60" y="68" textAnchor="middle" fontFamily="Arial, sans-serif" fontWeight="700" fontSize="48" fill="#FFFFFF" letterSpacing="1">at</text>
+    </svg>
+  )
 }
 
 export function MobileMoneyLogo({ size = 40 }) {
   return (
-    <div
-      className="rounded-full flex items-center justify-center bg-gray-500"
-      style={{ width: size, height: size }}
-    >
-      <svg width={size * 0.5} height={size * 0.5} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="5" y="2" width="14" height="20" rx="2.5" stroke="white" strokeWidth="2" />
-        <circle cx="12" cy="18" r="1.5" fill="white" />
-        <line x1="8" y1="5" x2="16" y2="5" stroke="white" strokeWidth="1.5" />
-      </svg>
-    </div>
+    <svg width={size} height={size} viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+      <rect width="120" height="120" rx="16" fill="#6B7280" />
+      <rect x="38" y="22" width="44" height="76" rx="8" fill="none" stroke="white" strokeWidth="5" />
+      <circle cx="60" cy="84" r="4" fill="white" />
+      <line x1="48" y1="30" x2="72" y2="30" stroke="white" strokeWidth="3" strokeLinecap="round" />
+    </svg>
   )
 }
 

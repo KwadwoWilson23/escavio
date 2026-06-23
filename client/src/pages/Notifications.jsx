@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { CheckCircle, AlertTriangle, Shield, FileText, Wallet, Bell, Check } from 'lucide-react'
+import { NotificationsSkeleton } from '../components/ui/Skeleton'
 import GlassCard from '../components/ui/GlassCard'
 import Badge from '../components/ui/Badge'
 import api from '../services/api'
@@ -70,9 +71,7 @@ export default function Notifications() {
   const grouped = groupByDate(filtered)
   const unreadCount = notifications.filter(n => !n.is_read).length
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-64 text-text-muted">Loading...</div>
-  }
+  if (loading) return <NotificationsSkeleton />
 
   return (
     <div className="space-y-6">

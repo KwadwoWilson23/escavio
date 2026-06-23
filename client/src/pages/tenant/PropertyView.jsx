@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Building2, MapPin, BedDouble, CheckCircle, Shield, Droplets, Zap, Car, ShieldCheck, Wifi, Wind, TreePine, Utensils, Loader2, AlertCircle } from 'lucide-react'
+import { DetailSkeleton } from '../../components/ui/Skeleton'
 import GlassCard from '../../components/ui/GlassCard'
 import Badge from '../../components/ui/Badge'
 import { formatGHS } from '../../utils/format'
@@ -48,9 +49,7 @@ export default function PropertyView() {
     }
   }
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-64 text-text-muted">Loading...</div>
-  }
+  if (loading) return <DetailSkeleton />
 
   if (!property) {
     return <div className="text-center py-12 text-text-muted">Property not found</div>

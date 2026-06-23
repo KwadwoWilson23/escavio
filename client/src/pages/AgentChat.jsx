@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Send, Bot, Phone, Mail, Sparkles } from 'lucide-react'
+import { ChatSkeleton } from '../components/ui/Skeleton'
 import api from '../services/api'
 
 export default function AgentChat() {
@@ -57,7 +58,7 @@ export default function AgentChat() {
 
       <div className="flex-1 overflow-y-auto space-y-3 pb-4">
         {loading ? (
-          <div className="flex items-center justify-center h-32 text-text-muted">Loading...</div>
+          <ChatSkeleton />
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full space-y-5">
             <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-blue-700 flex items-center justify-center shadow-lg">

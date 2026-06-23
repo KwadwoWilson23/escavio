@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Building2, MapPin, CheckCircle, Home, BedDouble, Store, LayoutGrid, Search, SlidersHorizontal, X } from 'lucide-react'
+import { PropertyGridSkeleton } from '../../components/ui/Skeleton'
 import GlassCard from '../../components/ui/GlassCard'
 import Badge from '../../components/ui/Badge'
 import { formatGHS } from '../../utils/format'
@@ -53,9 +54,7 @@ export default function BrowseProperties() {
 
   const activeFilters = [region !== 'All Regions', maxRent, propertyType].filter(Boolean).length
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-64 text-text-muted">Loading...</div>
-  }
+  if (loading) return <PropertyGridSkeleton />
 
   return (
     <div className="space-y-5">

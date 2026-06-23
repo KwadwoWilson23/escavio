@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Wallet, ArrowDownLeft, ArrowUpRight, Lock, Loader2, CheckCircle, XCircle, RefreshCw, Phone, Edit3, ChevronRight, Trash2, Clock, AlertTriangle } from 'lucide-react'
+import { WalletSkeleton } from '../../components/ui/Skeleton'
 import GlassCard from '../../components/ui/GlassCard'
 import Badge from '../../components/ui/Badge'
 import NetworkLogo, { detectNetwork } from '../../components/ui/NetworkLogo'
@@ -192,9 +193,7 @@ export default function WalletPage() {
 
   const quickAmounts = [50, 100, 200, 500, 1000, 2000]
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-64 text-text-muted">Loading...</div>
-  }
+  if (loading) return <WalletSkeleton />
 
   return (
     <div className="space-y-5">

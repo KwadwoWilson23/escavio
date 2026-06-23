@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { ScrollText, Plus } from 'lucide-react'
+import { ListSkeleton } from '../../components/ui/Skeleton'
 import GlassCard from '../../components/ui/GlassCard'
 import Badge from '../../components/ui/Badge'
 import { formatGHS, formatDate } from '../../utils/format'
@@ -16,9 +17,7 @@ export default function Leases() {
 
   const statusVariant = { active: 'success', pending: 'warning', completed: 'info', disputed: 'danger', at_risk: 'danger' }
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-64 text-text-muted">Loading...</div>
-  }
+  if (loading) return <ListSkeleton />
 
   return (
     <div className="space-y-6">

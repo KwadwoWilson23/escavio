@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { Wallet, ArrowDownRight, ArrowUpRight, ChevronRight, Zap, Search, CheckCircle, Building2, MapPin, Shield, Loader2, AlertCircle, Smartphone } from 'lucide-react'
+import { DashboardSkeleton } from '../../components/ui/Skeleton'
 import GlassCard from '../../components/ui/GlassCard'
 import Badge from '../../components/ui/Badge'
 import ProgressRing from '../../components/ui/ProgressRing'
@@ -104,9 +105,7 @@ export default function TenantDashboard() {
   const isAccepted = lease?.status === 'accepted'
   const isActive = lease?.status === 'active'
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-64 text-text-muted">Loading...</div>
-  }
+  if (loading) return <DashboardSkeleton />
 
   return (
     <div className="space-y-6">

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Calendar, CheckCircle, Circle, AlertTriangle, Brain, ExternalLink } from 'lucide-react'
+import { DetailSkeleton } from '../../components/ui/Skeleton'
 import GlassCard from '../../components/ui/GlassCard'
 import Badge from '../../components/ui/Badge'
 import { formatGHS, formatDate } from '../../utils/format'
@@ -33,9 +34,7 @@ export default function LeaseDetail() {
     load()
   }, [])
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-64 text-text-muted">Loading...</div>
-  }
+  if (loading) return <DetailSkeleton />
 
   if (!lease) {
     return (

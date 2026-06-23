@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Building2, ScrollText, ArrowDownRight, Plus, ChevronRight, AlertTriangle } from 'lucide-react'
+import { DashboardSkeleton } from '../../components/ui/Skeleton'
 import GlassCard from '../../components/ui/GlassCard'
 import Badge from '../../components/ui/Badge'
 import { formatGHS, formatDate } from '../../utils/format'
@@ -33,9 +34,7 @@ export default function LandlordDashboard() {
   const totalCollected = leases.reduce((sum, l) => sum + Number(l.escrow_balance || 0), 0)
   const nextDisbursement = activeLeases.reduce((sum, l) => sum + Number(l.monthly_amount || 0), 0)
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-64 text-text-muted">Loading...</div>
-  }
+  if (loading) return <DashboardSkeleton />
 
   return (
     <div className="space-y-6">

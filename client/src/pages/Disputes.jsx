@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Shield, Plus, Brain, ChevronRight, MessageSquare, AlertTriangle } from 'lucide-react'
+import { ListSkeleton } from '../components/ui/Skeleton'
 import GlassCard from '../components/ui/GlassCard'
 import Badge from '../components/ui/Badge'
 import { formatDate } from '../utils/format'
@@ -50,9 +51,7 @@ export default function Disputes() {
 
   const statusVariant = { open: 'warning', reviewing: 'info', resolved: 'success' }
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-64 text-text-muted">Loading...</div>
-  }
+  if (loading) return <ListSkeleton />
 
   if (selected) {
     return (

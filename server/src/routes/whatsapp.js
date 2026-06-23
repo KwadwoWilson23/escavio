@@ -67,6 +67,25 @@ router.post('/test', async (req, res) => {
   }
 })
 
+router.post('/chat', authenticate, async (req, res) => {
+  try {
+    const { message } = req.body
+    if (!message) return res.status(400).json({ error: 'message required' })
+
+    const { data: user } = await supabase
+      .from('users')
+      .select('phone')
+      .eq('id', req.user.id)
+      .single()
+
+    const phone = user?.phone || `web-${req.user.id}`
+    const reply = await handleIncomingMessage(phone, message)
+    res.json({ reply })
+  } catch (err) {
+    res.status(500).json({ error: 'Chat failed' })
+  }
+})
+
 router.get('/conversations', authenticate, async (req, res) => {
   try {
     const { data: user } = await supabase

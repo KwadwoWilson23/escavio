@@ -28,10 +28,37 @@ async function getOrCreateWallet(userId) {
 router.get('/balance', authenticate, async (req, res) => {
   try {
     const wallet = await getOrCreateWallet(req.user.id)
+
+    const { data: activeLeases } = await supabase
+      .from('leases')
+      .select('id, monthly_amount, status')
+      .eq('tenant_id', req.user.id)
+      .in('status', ['active', 'at_risk'])
+
+    let canWithdraw = true
+    let withdrawBlockReason = null
+
+    if (activeLeases && activeLeases.length > 0) {
+      const { data: overduePayments } = await supabase
+        .from('payments')
+        .select('id')
+        .in('lease_id', activeLeases.map(l => l.id))
+        .eq('status', 'overdue')
+        .limit(1)
+
+      if (overduePayments && overduePayments.length > 0) {
+        canWithdraw = false
+        withdrawBlockReason = 'You have overdue rent. Pay your rent before withdrawing.'
+      }
+    }
+
     res.json({
       balance: Number(wallet.balance),
       locked_balance: Number(wallet.locked_balance),
       total: Number(wallet.balance) + Number(wallet.locked_balance),
+      has_active_lease: (activeLeases?.length || 0) > 0,
+      can_withdraw: canWithdraw,
+      withdraw_block_reason: withdrawBlockReason,
     })
   } catch (err) {
     console.error('[Wallet] Balance error:', err.message)
@@ -334,6 +361,30 @@ router.post('/verify-otp', authenticate, async (req, res) => {
   }
 })
 
+router.post('/cancel/:id', authenticate, async (req, res) => {
+  try {
+    const { data: txn } = await supabase
+      .from('wallet_transactions')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .single()
+
+    if (!txn) return res.status(404).json({ error: 'Transaction not found' })
+
+    if (['pending', 'processing'].includes(txn.status)) {
+      await supabase
+        .from('wallet_transactions')
+        .update({ status: 'failed', description: txn.description + ' (cancelled)' })
+        .eq('id', txn.id)
+    }
+
+    res.json({ status: 'cancelled' })
+  } catch (err) {
+    res.status(500).json({ error: 'Cancel failed' })
+  }
+})
+
 router.post('/withdraw', authenticate, async (req, res) => {
   try {
     const { amount, phone: altPhone } = req.body
@@ -351,6 +402,43 @@ router.post('/withdraw', authenticate, async (req, res) => {
     const withdrawPhone = altPhone ? normalizePhone(altPhone) : user?.phone
     if (!withdrawPhone) {
       return res.status(400).json({ error: 'No phone number provided' })
+    }
+
+    const { data: activeLeases } = await supabase
+      .from('leases')
+      .select('id, monthly_amount, status')
+      .eq('tenant_id', req.user.id)
+      .in('status', ['active', 'at_risk'])
+
+    if (activeLeases && activeLeases.length > 0) {
+      const { data: overduePayments } = await supabase
+        .from('payments')
+        .select('id')
+        .in('lease_id', activeLeases.map(l => l.id))
+        .eq('status', 'overdue')
+        .limit(1)
+
+      if (overduePayments && overduePayments.length > 0) {
+        return res.status(403).json({
+          error: 'You have overdue rent payments. Please clear your outstanding rent before withdrawing funds.',
+          reason: 'overdue_rent',
+        })
+      }
+
+      const { data: pendingPayments } = await supabase
+        .from('payments')
+        .select('id')
+        .in('lease_id', activeLeases.map(l => l.id))
+        .eq('status', 'pending')
+        .eq('type', 'tenant_collection')
+        .limit(1)
+
+      if (pendingPayments && pendingPayments.length > 0) {
+        return res.status(403).json({
+          error: 'You have a pending rent payment being processed. Please wait for it to complete before withdrawing.',
+          reason: 'pending_rent',
+        })
+      }
     }
 
     const wallet = await getOrCreateWallet(req.user.id)

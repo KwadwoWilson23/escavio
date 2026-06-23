@@ -15,7 +15,7 @@ export default function DashboardLayout() {
       <TopBar />
 
       {/* Mobile content */}
-      <main className="lg:hidden pt-20 pb-24 px-5">
+      <main className="lg:hidden pt-20 pb-28 px-5">
         <Outlet />
       </main>
 

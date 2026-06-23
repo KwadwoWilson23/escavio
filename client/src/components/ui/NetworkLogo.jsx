@@ -1,42 +1,58 @@
-export function MTNLogo({ size = 40 }) {
+const LOGOS = {
+  mtn: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/93/New-mtn-logo.svg/1200px-New-mtn-logo.svg.png',
+  telecel: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/af/Vodafone_icon.svg/1200px-Vodafone_icon.svg.png',
+  at: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/ff/AirtelTigo_logo.svg/1200px-AirtelTigo_logo.svg.png',
+}
+
+function LogoImg({ src, alt, size, fallbackBg, fallbackText }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="24" cy="24" r="24" fill="#FFCC00" />
-      <path d="M8 32V20l6 8 6-8v12h-3V25.5l-3 4-3-4V32H8z" fill="#003068" />
-      <path d="M23 20h10v3h-3.5v9h-3v-9H23v-3z" fill="#003068" />
-      <path d="M34 32V20h3l5 7.5V20h3v12h-3l-5-7.5V32h-3z" fill="#003068" />
-    </svg>
+    <div
+      className="rounded-full overflow-hidden flex items-center justify-center bg-white"
+      style={{ width: size, height: size }}
+    >
+      <img
+        src={src}
+        alt={alt}
+        className="w-full h-full object-contain p-1"
+        onError={(e) => {
+          e.target.style.display = 'none'
+          e.target.nextSibling.style.display = 'flex'
+        }}
+      />
+      <div
+        className="w-full h-full items-center justify-center text-white font-bold text-xs rounded-full"
+        style={{ display: 'none', backgroundColor: fallbackBg }}
+      >
+        {fallbackText}
+      </div>
+    </div>
   )
+}
+
+export function MTNLogo({ size = 40 }) {
+  return <LogoImg src={LOGOS.mtn} alt="MTN MoMo" size={size} fallbackBg="#FFCC00" fallbackText="MTN" />
 }
 
 export function TelecelLogo({ size = 40 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="24" cy="24" r="24" fill="#E60000" />
-      <path d="M12 17h24v3H26.5v11h-5V20H12v-3z" fill="white" />
-      <circle cx="24" cy="33" r="2.5" fill="white" />
-    </svg>
-  )
+  return <LogoImg src={LOGOS.telecel} alt="Telecel Cash" size={size} fallbackBg="#E60000" fallbackText="T" />
 }
 
 export function AirtelTigoLogo({ size = 40 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="24" cy="24" r="24" fill="#ED1C24" />
-      <path d="M24 12c-2.5 0-4.8 1.2-6.5 3.2C15.8 17.2 15 20.3 15 24c0 3.7.8 6.8 2.5 8.8 1.7 2 4 3.2 6.5 3.2s4.8-1.2 6.5-3.2c1.7-2 2.5-5.1 2.5-8.8 0-3.7-.8-6.8-2.5-8.8C28.8 13.2 26.5 12 24 12z" fill="none" stroke="white" strokeWidth="2.5" />
-      <path d="M24 18c-1 0-2 .6-2.7 1.6-.7 1-.7 2.4-.7 4.4s0 3.4.7 4.4c.7 1 1.7 1.6 2.7 1.6s2-.6 2.7-1.6c.7-1 .7-2.4.7-4.4s0-3.4-.7-4.4C26 18.6 25 18 24 18z" fill="white" />
-    </svg>
-  )
+  return <LogoImg src={LOGOS.at} alt="AirtelTigo" size={size} fallbackBg="#003478" fallbackText="AT" />
 }
 
 export function MobileMoneyLogo({ size = 40 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="24" cy="24" r="24" fill="#6B7280" />
-      <rect x="16" y="12" width="16" height="24" rx="3" fill="none" stroke="white" strokeWidth="2" />
-      <circle cx="24" cy="31" r="1.5" fill="white" />
-      <line x1="19" y1="15" x2="29" y2="15" stroke="white" strokeWidth="1.5" />
-    </svg>
+    <div
+      className="rounded-full flex items-center justify-center bg-gray-500"
+      style={{ width: size, height: size }}
+    >
+      <svg width={size * 0.5} height={size * 0.5} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="5" y="2" width="14" height="20" rx="2.5" stroke="white" strokeWidth="2" />
+        <circle cx="12" cy="18" r="1.5" fill="white" />
+        <line x1="8" y1="5" x2="16" y2="5" stroke="white" strokeWidth="1.5" />
+      </svg>
+    </div>
   )
 }
 

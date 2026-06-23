@@ -378,6 +378,30 @@ router.post('/verify-otp', authenticate, async (req, res) => {
   }
 })
 
+router.post('/cancel/:id', authenticate, async (req, res) => {
+  try {
+    const { data: payment } = await supabase
+      .from('payments')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('payer_id', req.user.id)
+      .single()
+
+    if (!payment) return res.status(404).json({ error: 'Payment not found' })
+
+    if (['pending', 'processing'].includes(payment.status)) {
+      await supabase
+        .from('payments')
+        .update({ status: 'failed' })
+        .eq('id', payment.id)
+    }
+
+    res.json({ status: 'cancelled' })
+  } catch (err) {
+    res.status(500).json({ error: 'Cancel failed' })
+  }
+})
+
 router.get('/lease/:id', authenticate, async (req, res) => {
   try {
     const { data, error } = await supabase

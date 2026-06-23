@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Wallet, ArrowDownLeft, ArrowUpRight, Lock, Loader2, CheckCircle, XCircle, RefreshCw, Phone, Edit3, ChevronRight, Trash2, Clock } from 'lucide-react'
+import { Wallet, ArrowDownLeft, ArrowUpRight, Lock, Loader2, CheckCircle, XCircle, RefreshCw, Phone, Edit3, ChevronRight, Trash2, Clock, AlertTriangle } from 'lucide-react'
 import GlassCard from '../../components/ui/GlassCard'
 import Badge from '../../components/ui/Badge'
 import NetworkLogo, { detectNetwork } from '../../components/ui/NetworkLogo'
@@ -27,6 +27,9 @@ export default function WalletPage() {
   const navigate = useNavigate()
 
   const [showAllTxns, setShowAllTxns] = useState(false)
+  const [canWithdraw, setCanWithdraw] = useState(true)
+  const [withdrawBlockReason, setWithdrawBlockReason] = useState('')
+  const [hasActiveLease, setHasActiveLease] = useState(false)
 
   const activePhone = useAltPhone && altPhone.replace(/\D/g, '').length >= 9 ? altPhone : user?.phone
   const network = activePhone ? detectNetwork(activePhone) : 'Mobile Money'
@@ -44,6 +47,9 @@ export default function WalletPage() {
       ])
       setBalance(balRes.data.balance)
       setLockedBalance(balRes.data.locked_balance)
+      setCanWithdraw(balRes.data.can_withdraw !== false)
+      setWithdrawBlockReason(balRes.data.withdraw_block_reason || '')
+      setHasActiveLease(balRes.data.has_active_lease || false)
       setTransactions(txnRes.data)
     } catch {} finally {
       setLoading(false)
@@ -156,10 +162,15 @@ export default function WalletPage() {
     }
   }
 
-  function cancelDeposit() {
+  async function cancelDeposit() {
     if (pollRef.current) clearInterval(pollRef.current)
-    setStep('idle')
-    setError('')
+    if (txnId) {
+      try {
+        await api.post(`/wallet/cancel/${txnId}`)
+      } catch {}
+    }
+    setStep('failed')
+    setError('Payment was cancelled.')
     setTxnId(null)
   }
 
@@ -299,64 +310,86 @@ export default function WalletPage() {
                 <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Withdraw to {network}</h3>
               </div>
 
-              <div className="bg-surface rounded-xl p-3 flex items-center gap-3">
-                <Phone size={16} className="text-text-dim flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  {useAltPhone ? (
-                    <div className="flex gap-2 items-center">
-                      <span className="text-xs text-text-muted flex-shrink-0">+233</span>
-                      <input
-                        type="tel"
-                        placeholder="24 123 4567"
-                        value={altPhone}
-                        onChange={e => setAltPhone(e.target.value)}
-                        className="flex-1 text-sm bg-transparent border-none p-0 focus:ring-0 focus:outline-none"
-                        maxLength={12}
-                      />
-                    </div>
-                  ) : (
-                    <p className="text-sm font-medium truncate">{user?.phone || 'No phone'}</p>
-                  )}
-                  <p className="text-[10px] text-text-dim">Funds will be sent to this number</p>
+              {!canWithdraw ? (
+                <div className="py-6 text-center space-y-3">
+                  <div className="w-14 h-14 mx-auto rounded-full bg-amber-50 flex items-center justify-center">
+                    <AlertTriangle size={28} className="text-amber-500" />
+                  </div>
+                  <h3 className="font-bold text-text-primary">Withdrawal Restricted</h3>
+                  <p className="text-sm text-text-muted max-w-xs mx-auto leading-relaxed">
+                    {withdrawBlockReason || 'You have outstanding rent obligations. Clear your dues to unlock withdrawals.'}
+                  </p>
+                  <button onClick={() => navigate('/dashboard/pay')} className="btn-primary px-6 py-2.5 text-sm">
+                    Pay Rent Now
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => { setUseAltPhone(!useAltPhone); setAltPhone('') }}
-                  className="text-xs text-primary font-semibold flex items-center gap-1 flex-shrink-0"
-                >
-                  <Edit3 size={12} />
-                  {useAltPhone ? 'Use mine' : 'Change'}
-                </button>
-              </div>
+              ) : (
+                <>
+                  <div className="bg-surface rounded-xl p-3 flex items-center gap-3">
+                    <Phone size={16} className="text-text-dim flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      {useAltPhone ? (
+                        <div className="flex gap-2 items-center">
+                          <span className="text-xs text-text-muted flex-shrink-0">+233</span>
+                          <input
+                            type="tel"
+                            placeholder="24 123 4567"
+                            value={altPhone}
+                            onChange={e => setAltPhone(e.target.value)}
+                            className="flex-1 text-sm bg-transparent border-none p-0 focus:ring-0 focus:outline-none"
+                            maxLength={12}
+                          />
+                        </div>
+                      ) : (
+                        <p className="text-sm font-medium truncate">{user?.phone || 'No phone'}</p>
+                      )}
+                      <p className="text-[10px] text-text-dim">Funds will be sent to this number</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setUseAltPhone(!useAltPhone); setAltPhone('') }}
+                      className="text-xs text-primary font-semibold flex items-center gap-1 flex-shrink-0"
+                    >
+                      <Edit3 size={12} />
+                      {useAltPhone ? 'Use mine' : 'Change'}
+                    </button>
+                  </div>
 
-              <div>
-                <input
-                  type="number"
-                  placeholder="0.00"
-                  value={withdrawAmount}
-                  onChange={e => setWithdrawAmount(e.target.value)}
-                  className="w-full text-3xl font-bold text-center border-none bg-transparent p-0 focus:ring-0"
-                />
-                <p className="text-center text-xs text-text-dim mt-1">Available: {formatGHS(balance)}</p>
-              </div>
-              <button
-                onClick={() => setWithdrawAmount(String(balance))}
-                className="text-xs text-primary font-semibold mx-auto block"
-              >
-                Withdraw All
-              </button>
-              {error && <p className="text-xs text-red-500 text-center">{error}</p>}
-              <button
-                onClick={handleWithdraw}
-                disabled={!withdrawAmount || Number(withdrawAmount) < 1}
-                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-semibold bg-surface-card border border-surface-border text-text-primary disabled:opacity-50"
-              >
-                <ArrowUpRight size={16} /> Withdraw {withdrawAmount ? formatGHS(Number(withdrawAmount)) : ''}
-              </button>
-              {lockedBalance > 0 && (
-                <p className="text-[10px] text-text-dim text-center flex items-center justify-center gap-1">
-                  <Lock size={10} /> Locked funds ({formatGHS(lockedBalance)}) cannot be withdrawn
-                </p>
+                  <div>
+                    <input
+                      type="number"
+                      placeholder="0.00"
+                      value={withdrawAmount}
+                      onChange={e => setWithdrawAmount(e.target.value)}
+                      className="w-full text-3xl font-bold text-center border-none bg-transparent p-0 focus:ring-0"
+                    />
+                    <p className="text-center text-xs text-text-dim mt-1">Available: {formatGHS(balance)}</p>
+                  </div>
+                  <button
+                    onClick={() => setWithdrawAmount(String(balance))}
+                    className="text-xs text-primary font-semibold mx-auto block"
+                  >
+                    Withdraw All
+                  </button>
+                  {error && <p className="text-xs text-red-500 text-center">{error}</p>}
+                  <button
+                    onClick={handleWithdraw}
+                    disabled={!withdrawAmount || Number(withdrawAmount) < 1}
+                    className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-semibold bg-surface-card border border-surface-border text-text-primary disabled:opacity-50"
+                  >
+                    <ArrowUpRight size={16} /> Withdraw {withdrawAmount ? formatGHS(Number(withdrawAmount)) : ''}
+                  </button>
+                  {hasActiveLease && (
+                    <p className="text-[10px] text-amber-600 text-center flex items-center justify-center gap-1">
+                      <AlertTriangle size={10} /> Withdrawals are monitored. Ensure your rent is up to date.
+                    </p>
+                  )}
+                  {lockedBalance > 0 && (
+                    <p className="text-[10px] text-text-dim text-center flex items-center justify-center gap-1">
+                      <Lock size={10} /> Locked funds ({formatGHS(lockedBalance)}) cannot be withdrawn
+                    </p>
+                  )}
+                </>
               )}
             </GlassCard>
           )}

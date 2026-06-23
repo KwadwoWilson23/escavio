@@ -1,7 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Send, Bot, User } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
-import GlassCard from '../components/ui/GlassCard'
+import { Send, Bot, Phone, Mail, Sparkles } from 'lucide-react'
 import api from '../services/api'
 
 export default function AgentChat() {
@@ -10,7 +8,6 @@ export default function AgentChat() {
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
   const bottomRef = useRef()
-  const navigate = useNavigate()
 
   useEffect(() => {
     api.get('/whatsapp/conversations')
@@ -33,7 +30,7 @@ export default function AgentChat() {
     setSending(true)
 
     try {
-      const { data } = await api.post('/whatsapp/test', { phone: 'web-chat', message: userMsg })
+      const { data } = await api.post('/whatsapp/chat', { message: userMsg })
       setMessages(prev => [...prev, { role: 'assistant', content: data.reply, created_at: new Date().toISOString() }])
     } catch {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, I couldn\'t process that. Please try again.', created_at: new Date().toISOString() }])
@@ -42,18 +39,19 @@ export default function AgentChat() {
     }
   }
 
+  function handleQuickQuestion(q) {
+    setInput(q)
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-10rem)]">
       <div className="flex items-center gap-3 mb-4">
-        <button onClick={() => navigate(-1)} className="text-primary">
-          <ArrowLeft size={22} />
-        </button>
-        <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center">
-          <Bot size={20} className="text-primary" />
+        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-blue-700 flex items-center justify-center shadow-md">
+          <Sparkles size={20} className="text-white" />
         </div>
         <div>
-          <h1 className="font-bold">Ama</h1>
-          <p className="text-xs text-primary">AI Assistant &bull; Online</p>
+          <h1 className="font-bold text-text-primary">Ama</h1>
+          <p className="text-xs text-primary font-medium">AI Assistant &bull; Online</p>
         </div>
       </div>
 
@@ -61,32 +59,45 @@ export default function AgentChat() {
         {loading ? (
           <div className="flex items-center justify-center h-32 text-text-muted">Loading...</div>
         ) : messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full space-y-4">
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-              <Bot size={32} className="text-primary" />
+          <div className="flex flex-col items-center justify-center h-full space-y-5">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-blue-700 flex items-center justify-center shadow-lg">
+              <Sparkles size={36} className="text-white" />
             </div>
             <div className="text-center">
-              <p className="font-semibold">Hi! I'm Ama</p>
-              <p className="text-sm text-text-muted mt-1 max-w-xs">
-                Your Escavio AI assistant. Ask me about your lease, payments, or anything rental-related.
+              <p className="text-lg font-bold text-text-primary">Hi! I'm Ama</p>
+              <p className="text-sm text-text-muted mt-1 max-w-xs leading-relaxed">
+                Your Escavio AI assistant. Ask me about your lease, payments, disputes, or anything rental-related in Ghana.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2 justify-center">
-              {['How much do I owe?', 'When is my next payment?', 'Summarize my lease'].map(q => (
+            <div className="flex flex-wrap gap-2 justify-center max-w-sm">
+              {['How much do I owe?', 'When is my next payment?', 'Summarize my lease', 'Ghana Rent Act rules'].map(q => (
                 <button
                   key={q}
-                  onClick={() => setInput(q)}
-                  className="px-3 py-1.5 rounded-full bg-surface-card border border-surface-border text-xs text-text-muted"
+                  onClick={() => handleQuickQuestion(q)}
+                  className="px-3.5 py-2 rounded-full bg-primary/5 border border-primary/20 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
                 >
                   {q}
                 </button>
               ))}
             </div>
+            <div className="glass-card p-4 mt-2 max-w-xs">
+              <p className="text-xs font-semibold text-text-primary mb-2">Need human help?</p>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 text-xs text-text-muted">
+                  <Phone size={12} />
+                  <span>0504399802</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-text-muted">
+                  <Mail size={12} />
+                  <span>support@escavio.site</span>
+                </div>
+              </div>
+            </div>
           </div>
         ) : (
           messages.map((msg, i) => (
             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm ${
+              <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
                 msg.role === 'user'
                   ? 'bg-primary text-white rounded-br-md'
                   : 'glass-card rounded-bl-md'
@@ -95,6 +106,17 @@ export default function AgentChat() {
               </div>
             </div>
           ))
+        )}
+        {sending && (
+          <div className="flex justify-start">
+            <div className="glass-card rounded-2xl rounded-bl-md px-4 py-3">
+              <div className="flex gap-1.5">
+                <div className="w-2 h-2 bg-primary/40 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-2 h-2 bg-primary/40 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-2 h-2 bg-primary/40 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+            </div>
+          </div>
         )}
         <div ref={bottomRef} />
       </div>

@@ -8,6 +8,12 @@ import './index.css'
 
 const GOOGLE_CLIENT_ID = '295863276064-1fjccbg3pmhqpo6vnh76dhnrk5tsah24.apps.googleusercontent.com'
 
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {})
+  })
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>

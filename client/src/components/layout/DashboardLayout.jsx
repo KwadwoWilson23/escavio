@@ -3,6 +3,7 @@ import { useAuth } from '../../hooks/useAuth'
 import TopBar from './TopBar'
 import BottomNav from './BottomNav'
 import Sidebar from './Sidebar'
+import InstallBanner from '../InstallBanner'
 
 export default function DashboardLayout() {
   const { user } = useAuth()
@@ -11,6 +12,7 @@ export default function DashboardLayout() {
 
   return (
     <div className="min-h-screen bg-white lg:bg-slate-50">
+      <InstallBanner />
       <Sidebar />
       <TopBar />
 

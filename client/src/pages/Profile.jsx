@@ -1,15 +1,17 @@
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import { CheckCircle, Eye, EyeOff, Edit2, LogOut, CreditCard, FileText, ShieldCheck, ArrowRight, Shield } from 'lucide-react'
+import { CheckCircle, Eye, EyeOff, Edit2, LogOut, CreditCard, FileText, ShieldCheck, ArrowRight, Shield, Download, Smartphone } from 'lucide-react'
 import { useState } from 'react'
 import GlassCard from '../components/ui/GlassCard'
 import Badge from '../components/ui/Badge'
+import { usePWA } from '../hooks/usePWA'
 
 export default function Profile() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [showCard, setShowCard] = useState(false)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+  const { canInstall, isInstalled, install } = usePWA()
 
   function handleLogout() {
     logout()
@@ -81,6 +83,31 @@ export default function Profile() {
           <LogOut size={16} /> Logout
         </button>
       </div>
+
+      {canInstall && (
+        <GlassCard glow="primary" className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <Download size={22} className="text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm text-text-primary">Install Escavio App</p>
+            <p className="text-xs text-text-muted mt-0.5">Add to your home screen for quick access</p>
+          </div>
+          <button
+            onClick={install}
+            className="bg-primary text-white text-xs font-semibold px-4 py-2 rounded-full flex-shrink-0 active:scale-95 transition-all"
+          >
+            Install
+          </button>
+        </GlassCard>
+      )}
+
+      {isInstalled && (
+        <div className="flex items-center gap-2 px-1">
+          <Smartphone size={14} className="text-accent-success" />
+          <span className="text-xs text-accent-success font-medium">App installed</span>
+        </div>
+      )}
 
       <div>
         <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Account Settings</h3>

@@ -5,8 +5,12 @@ import { verifyPropertyDocument } from '../services/ai.js'
 import { sendSMS } from '../services/moolre.js'
 import { createNotification } from '../services/notify.js'
 import { getOrCreateWallet } from './wallet.js'
+import { isValidUUID, isValidAmount } from '../middleware/validate.js'
 
 const router = Router()
+
+const VALID_REGIONS = ['greater-accra', 'ashanti', 'western', 'eastern', 'central', 'northern', 'volta', 'upper-east', 'upper-west', 'bono', 'bono-east', 'ahafo', 'western-north', 'north-east', 'savannah', 'oti']
+const VALID_PROPERTY_TYPES = ['apartment', 'house', 'single-room', 'chamber-and-hall', 'self-contained', 'commercial', 'land']
 
 router.post('/', authenticate, requireRole('landlord'), async (req, res) => {
   try {
@@ -22,19 +26,31 @@ router.post('/', authenticate, requireRole('landlord'), async (req, res) => {
 
     const { address, region, monthly_rent, bedrooms, property_type, description, amenities, image_url, images } = req.body
 
+    if (!address || typeof address !== 'string' || address.trim().length < 5 || address.length > 500) {
+      return res.status(400).json({ error: 'Address must be 5-500 characters' })
+    }
+
+    if (!region || typeof region !== 'string') {
+      return res.status(400).json({ error: 'Region is required' })
+    }
+
+    if (!monthly_rent || !isValidAmount(Number(monthly_rent))) {
+      return res.status(400).json({ error: 'Monthly rent must be between GHS 1 and GHS 1,000,000' })
+    }
+
     const { data, error } = await supabase
       .from('properties')
       .insert({
         landlord_id: req.user.id,
-        address,
-        region,
-        monthly_rent,
-        bedrooms: bedrooms || 1,
-        property_type: property_type || 'apartment',
-        description: description ? description.slice(0, 200) : null,
-        amenities: amenities || [],
+        address: address.trim().slice(0, 500),
+        region: region.trim().slice(0, 100),
+        monthly_rent: Number(monthly_rent),
+        bedrooms: Math.min(Math.max(parseInt(bedrooms) || 1, 1), 50),
+        property_type: VALID_PROPERTY_TYPES.includes(property_type) ? property_type : 'apartment',
+        description: description ? String(description).slice(0, 500) : null,
+        amenities: Array.isArray(amenities) ? amenities.slice(0, 20).map(a => String(a).slice(0, 50)) : [],
         image_url: image_url || null,
-        images: images || [],
+        images: Array.isArray(images) ? images.slice(0, 10) : [],
       })
       .select()
       .single()
@@ -125,6 +141,10 @@ router.get('/mine', authenticate, requireRole('landlord'), async (req, res) => {
 
 router.get('/:id', authenticate, async (req, res) => {
   try {
+    if (!isValidUUID(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid property ID' })
+    }
+
     const { data, error } = await supabase
       .from('properties')
       .select('*, landlord:users!properties_landlord_id_fkey(is_verified)')

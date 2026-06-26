@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { supabase } from '../config/supabase.js'
 import { authenticate } from '../middleware/auth.js'
 import { collectPayment, checkPaymentStatus, disbursePayment, parseTxStatus, normalizePhone, verifyPaymentOTP } from '../services/moolre.js'
+import { isValidAmount, isValidPhone, isValidOTP, isValidUUID } from '../middleware/validate.js'
 import env from '../config/env.js'
 
 const router = Router()
@@ -153,8 +154,12 @@ router.post('/deposit', authenticate, async (req, res) => {
   try {
     const { amount, phone: altPhone } = req.body
 
-    if (!amount || amount < 1) {
-      return res.status(400).json({ error: 'Minimum deposit is GHS 1.00' })
+    if (!isValidAmount(Number(amount))) {
+      return res.status(400).json({ error: 'Amount must be between GHS 1 and GHS 1,000,000' })
+    }
+
+    if (altPhone && !isValidPhone(altPhone)) {
+      return res.status(400).json({ error: 'Invalid phone number' })
     }
 
     const { data: user } = await supabase
@@ -291,11 +296,11 @@ router.post('/verify-otp', authenticate, async (req, res) => {
   try {
     const { transaction_id, otp } = req.body
 
-    if (!transaction_id || !otp) {
-      return res.status(400).json({ error: 'Transaction ID and OTP are required' })
+    if (!transaction_id || !isValidUUID(transaction_id)) {
+      return res.status(400).json({ error: 'Valid transaction ID is required' })
     }
 
-    if (!/^\d{4,6}$/.test(otp)) {
+    if (!otp || !isValidOTP(otp)) {
       return res.status(400).json({ error: 'OTP must be 4-6 digits' })
     }
 
@@ -455,8 +460,12 @@ router.post('/withdraw', authenticate, async (req, res) => {
   try {
     const { amount, phone: altPhone } = req.body
 
-    if (!amount || amount < 1) {
-      return res.status(400).json({ error: 'Minimum withdrawal is GHS 1.00' })
+    if (!isValidAmount(Number(amount))) {
+      return res.status(400).json({ error: 'Amount must be between GHS 1 and GHS 1,000,000' })
+    }
+
+    if (altPhone && !isValidPhone(altPhone)) {
+      return res.status(400).json({ error: 'Invalid phone number' })
     }
 
     const { data: user } = await supabase

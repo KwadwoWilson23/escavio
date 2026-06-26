@@ -26,8 +26,8 @@ export default function Register() {
     if (form.password !== form.confirm_password) {
       return setError('Passwords do not match')
     }
-    if (form.password.length < 6) {
-      return setError('Password must be at least 6 characters')
+    if (form.password.length < 8) {
+      return setError('Password must be at least 8 characters')
     }
     try {
       const { confirm_password, ...submitData } = form

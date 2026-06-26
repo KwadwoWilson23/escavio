@@ -1,17 +1,18 @@
 import { Router } from 'express'
 import { supabase } from '../config/supabase.js'
 import { authenticate } from '../middleware/auth.js'
-import { verifyGhanaCard, verifyFaceMatch } from '../services/ai.js'
+import { verifyGhanaCard, verifyGhanaCardBack, verifyFaceMatch } from '../services/ai.js'
 import { createNotification } from '../services/notify.js'
+import { isValidBase64Image } from '../middleware/validate.js'
 
 const router = Router()
 
-router.post('/verify', authenticate, async (req, res) => {
+router.post('/verify-front', authenticate, async (req, res) => {
   try {
     const { image } = req.body
 
-    if (!image) {
-      return res.status(400).json({ error: 'Ghana Card image is required' })
+    if (!image || !isValidBase64Image(image)) {
+      return res.status(400).json({ error: 'A valid Ghana Card image is required (max 10MB)' })
     }
 
     const { data: user } = await supabase
@@ -24,13 +25,28 @@ router.post('/verify', authenticate, async (req, res) => {
     if (user.is_verified) return res.json({ verified: true, reason: 'Already verified' })
 
     const base64 = image.replace(/^data:image\/\w+;base64,/, '')
-
     const result = await verifyGhanaCard(base64, user)
 
     if (result.verified && result.extracted?.card_number) {
+      const cardNumber = result.extracted.card_number.trim().toUpperCase()
+
+      const { data: existing } = await supabase
+        .from('users')
+        .select('id')
+        .eq('ghana_card_number', cardNumber)
+        .neq('id', req.user.id)
+        .single()
+
+      if (existing) {
+        return res.status(409).json({
+          verified: false,
+          reason: 'This Ghana Card is already registered to another account. Each card can only be used once.',
+        })
+      }
+
       await supabase
         .from('users')
-        .update({ ghana_card_number: result.extracted.card_number })
+        .update({ ghana_card_number: cardNumber })
         .eq('id', req.user.id)
     }
 
@@ -43,8 +59,103 @@ router.post('/verify', authenticate, async (req, res) => {
 
     res.json(result)
   } catch (err) {
-    console.error('[KYC] Card verification error:', err.message, err.response?.data || '')
-    res.status(500).json({ error: 'Verification failed', reason: err.message })
+    console.error('[KYC] Front verification error:', err.message)
+    res.status(500).json({ error: 'Verification failed' })
+  }
+})
+
+router.post('/verify-back', authenticate, async (req, res) => {
+  try {
+    const { image } = req.body
+
+    if (!image || !isValidBase64Image(image)) {
+      return res.status(400).json({ error: 'A valid Ghana Card back image is required (max 10MB)' })
+    }
+
+    const { data: user } = await supabase
+      .from('users')
+      .select('full_name, ghana_card_number, is_verified')
+      .eq('id', req.user.id)
+      .single()
+
+    if (!user) return res.status(404).json({ error: 'User not found' })
+    if (user.is_verified) return res.json({ verified: true, reason: 'Already verified' })
+
+    if (!user.ghana_card_number) {
+      return res.status(400).json({ error: 'Please verify the front of your Ghana Card first' })
+    }
+
+    const base64 = image.replace(/^data:image\/\w+;base64,/, '')
+    const result = await verifyGhanaCardBack(base64, user.ghana_card_number)
+
+    if (!result.verified) {
+      await supabase
+        .from('users')
+        .update({ kyc_rejection_reason: result.reason })
+        .eq('id', req.user.id)
+    }
+
+    res.json(result)
+  } catch (err) {
+    console.error('[KYC] Back verification error:', err.message)
+    res.status(500).json({ error: 'Back verification failed' })
+  }
+})
+
+router.post('/verify', authenticate, async (req, res) => {
+  try {
+    const { image } = req.body
+
+    if (!image || !isValidBase64Image(image)) {
+      return res.status(400).json({ error: 'A valid Ghana Card image is required (max 10MB)' })
+    }
+
+    const { data: user } = await supabase
+      .from('users')
+      .select('full_name, ghana_card_number, is_verified')
+      .eq('id', req.user.id)
+      .single()
+
+    if (!user) return res.status(404).json({ error: 'User not found' })
+    if (user.is_verified) return res.json({ verified: true, reason: 'Already verified' })
+
+    const base64 = image.replace(/^data:image\/\w+;base64,/, '')
+    const result = await verifyGhanaCard(base64, user)
+
+    if (result.verified && result.extracted?.card_number) {
+      const cardNumber = result.extracted.card_number.trim().toUpperCase()
+
+      const { data: existing } = await supabase
+        .from('users')
+        .select('id')
+        .eq('ghana_card_number', cardNumber)
+        .neq('id', req.user.id)
+        .single()
+
+      if (existing) {
+        return res.status(409).json({
+          verified: false,
+          reason: 'This Ghana Card is already registered to another account. Each card can only be used once.',
+        })
+      }
+
+      await supabase
+        .from('users')
+        .update({ ghana_card_number: cardNumber })
+        .eq('id', req.user.id)
+    }
+
+    if (!result.verified) {
+      await supabase
+        .from('users')
+        .update({ kyc_rejection_reason: result.reason })
+        .eq('id', req.user.id)
+    }
+
+    res.json(result)
+  } catch (err) {
+    console.error('[KYC] Card verification error:', err.message)
+    res.status(500).json({ error: 'Verification failed' })
   }
 })
 
@@ -52,8 +163,12 @@ router.post('/verify-face', authenticate, async (req, res) => {
   try {
     const { cardImage, selfie } = req.body
 
-    if (!cardImage || !selfie) {
-      return res.status(400).json({ error: 'Both card image and selfie are required' })
+    if (!cardImage || !isValidBase64Image(cardImage)) {
+      return res.status(400).json({ error: 'A valid card image is required' })
+    }
+
+    if (!selfie || !isValidBase64Image(selfie)) {
+      return res.status(400).json({ error: 'A valid selfie is required' })
     }
 
     const { data: user } = await supabase
@@ -100,8 +215,8 @@ router.post('/verify-face', authenticate, async (req, res) => {
 
     res.json(result)
   } catch (err) {
-    console.error('[KYC] Face verification error:', err.message, err.response?.data || '')
-    res.status(500).json({ error: 'Face verification failed', reason: err.message })
+    console.error('[KYC] Face verification error:', err.message)
+    res.status(500).json({ error: 'Face verification failed' })
   }
 })
 

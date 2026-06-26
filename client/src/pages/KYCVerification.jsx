@@ -289,23 +289,29 @@ function ProgressBar({ current, total }) {
 export default function KYCVerification() {
   const [step, setStep] = useState('intro')
   const [cardImage, setCardImage] = useState(null)
+  const [backImage, setBackImage] = useState(null)
   const [selfieImage, setSelfieImage] = useState(null)
   const [cardResult, setCardResult] = useState(null)
+  const [backResult, setBackResult] = useState(null)
   const [faceResult, setFaceResult] = useState(null)
   const [showCamera, setShowCamera] = useState(false)
+  const [showBackCamera, setShowBackCamera] = useState(false)
   const [showSelfie, setShowSelfie] = useState(false)
   const [processingStep, setProcessingStep] = useState(0)
   const [failReason, setFailReason] = useState('')
   const galleryRef = useRef()
+  const backGalleryRef = useRef()
   const navigate = useNavigate()
   const { refreshUser } = useAuth()
 
   const progressMap = {
     intro: 1, preview: 1,
     processing: 2,
-    'selfie-intro': 3, 'selfie-preview': 3,
-    'face-processing': 4,
-    success: 5, failed: 0,
+    'back-intro': 3, 'back-preview': 3,
+    'back-processing': 3,
+    'selfie-intro': 4, 'selfie-preview': 4,
+    'face-processing': 5,
+    success: 6, failed: 0,
   }
 
   function handleGalleryFile(e) {
@@ -323,10 +329,31 @@ export default function KYCVerification() {
     reader.readAsDataURL(file)
   }
 
+  function handleBackGalleryFile(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 15 * 1024 * 1024) {
+      alert('Image too large. Please use a photo under 15MB.')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      setBackImage(reader.result)
+      setStep('back-preview')
+    }
+    reader.readAsDataURL(file)
+  }
+
   function handleCameraCapture(dataUrl) {
     setShowCamera(false)
     setCardImage(dataUrl)
     setStep('preview')
+  }
+
+  function handleBackCameraCapture(dataUrl) {
+    setShowBackCamera(false)
+    setBackImage(dataUrl)
+    setStep('back-preview')
   }
 
   function handleSelfieCapture(dataUrl) {
@@ -368,20 +395,50 @@ export default function KYCVerification() {
 
     try {
       const compressed = await compressImage(cardImage)
-      const { data } = await api.post('/kyc/verify', { image: compressed })
+      const { data } = await api.post('/kyc/verify-front', { image: compressed })
       timers.forEach(clearTimeout)
 
       if (data.verified) {
         setCardResult(data)
-        setStep('selfie-intro')
+        setStep('back-intro')
       } else {
         setFailReason(data.reason || 'Card verification failed. Please try again with a clearer photo.')
         setCardResult(data)
         setStep('failed')
       }
+    } catch (err) {
+      timers.forEach(clearTimeout)
+      const msg = err.response?.data?.reason || err.response?.data?.error || 'Verification service unavailable. Please check your connection and try again.'
+      setFailReason(msg)
+      setStep('failed')
+    }
+  }
+
+  async function handleBackVerify() {
+    setStep('back-processing')
+    setProcessingStep(0)
+
+    const timers = [
+      setTimeout(() => setProcessingStep(1), 1500),
+      setTimeout(() => setProcessingStep(2), 3500),
+    ]
+
+    try {
+      const compressed = await compressImage(backImage)
+      const { data } = await api.post('/kyc/verify-back', { image: compressed })
+      timers.forEach(clearTimeout)
+
+      if (data.verified) {
+        setBackResult(data)
+        setStep('selfie-intro')
+      } else {
+        setFailReason(data.reason || 'Back verification failed. Please try again with a clearer photo.')
+        setBackResult(data)
+        setStep('failed')
+      }
     } catch {
       timers.forEach(clearTimeout)
-      setFailReason('Verification service unavailable. Please check your connection and try again.')
+      setFailReason('Verification service unavailable. Please try again.')
       setStep('failed')
     }
   }
@@ -422,12 +479,21 @@ export default function KYCVerification() {
 
   function handleRetry() {
     setCardImage(null)
+    setBackImage(null)
     setSelfieImage(null)
     setCardResult(null)
+    setBackResult(null)
     setFaceResult(null)
     setFailReason('')
     setStep('intro')
     setProcessingStep(0)
+  }
+
+  function handleRetakeBack() {
+    setBackImage(null)
+    setBackResult(null)
+    setFailReason('')
+    setStep('back-intro')
   }
 
   function handleRetakeSelfie() {
@@ -444,6 +510,12 @@ export default function KYCVerification() {
     { label: 'Cross-referencing profile...', Icon: UserCheck },
   ]
 
+  const backSteps = [
+    { label: 'Detecting card back...', Icon: Search },
+    { label: 'Reading MRZ zone...', Icon: FileText },
+    { label: 'Matching with front...', Icon: ShieldCheck },
+  ]
+
   const faceSteps = [
     { label: 'Comparing faces...', Icon: ScanFace },
     { label: 'Checking liveness...', Icon: ShieldCheck },
@@ -456,6 +528,13 @@ export default function KYCVerification() {
         <CameraCapture
           onCapture={handleCameraCapture}
           onClose={() => setShowCamera(false)}
+        />
+      )}
+
+      {showBackCamera && (
+        <CameraCapture
+          onCapture={handleBackCameraCapture}
+          onClose={() => setShowBackCamera(false)}
         />
       )}
 
@@ -474,7 +553,7 @@ export default function KYCVerification() {
           <h1 className="text-xl font-bold">Identity Verification</h1>
         </div>
 
-        {step !== 'failed' && <ProgressBar current={progressMap[step] || 0} total={5} />}
+        {step !== 'failed' && <ProgressBar current={progressMap[step] || 0} total={6} />}
 
         {step === 'intro' && (
           <>
@@ -482,7 +561,7 @@ export default function KYCVerification() {
               <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-4">
                 <Shield size={32} className="text-primary" />
               </div>
-              <h2 className="text-lg font-bold">Step 1: Ghana Card</h2>
+              <h2 className="text-lg font-bold">Step 1: Card Front</h2>
               <p className="text-sm text-text-muted mt-2 max-w-xs mx-auto">
                 Take a photo or upload an image of the <strong>front side</strong> of your Ghana Card. Our AI verifies your card in seconds.
               </p>
@@ -534,7 +613,7 @@ export default function KYCVerification() {
         {step === 'preview' && (
           <>
             <GlassCard className="overflow-hidden p-0">
-              <img src={cardImage} alt="Ghana Card" className="w-full rounded-xl" />
+              <img src={cardImage} alt="Ghana Card Front" className="w-full rounded-xl" />
             </GlassCard>
 
             {cardImage && <QualityCheck imageData={cardImage} />}
@@ -556,21 +635,21 @@ export default function KYCVerification() {
                 <RotateCcw size={16} /> Retake
               </button>
               <button onClick={handleCardVerify} className="btn-primary flex-1 flex items-center justify-center gap-2 py-3.5">
-                <Zap size={16} /> Verify Card
+                <Zap size={16} /> Verify Front
               </button>
             </div>
           </>
         )}
 
         {step === 'processing' && (
-          <ProcessingView steps={cardSteps} current={processingStep} message="Analyzing your Ghana Card..." />
+          <ProcessingView steps={cardSteps} current={processingStep} message="Analyzing the front of your Ghana Card..." />
         )}
 
-        {step === 'selfie-intro' && (
+        {step === 'back-intro' && (
           <>
             <GlassCard glow="success" className="text-center py-4">
               <CheckCircle size={32} className="text-accent-success mx-auto mb-2" />
-              <h3 className="font-bold text-accent-success">Ghana Card Verified</h3>
+              <h3 className="font-bold text-accent-success">Front Side Verified</h3>
               {cardResult?.extracted?.full_name && (
                 <p className="text-sm text-text-muted mt-1">{cardResult.extracted.full_name}</p>
               )}
@@ -578,9 +657,104 @@ export default function KYCVerification() {
 
             <GlassCard className="text-center py-6">
               <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-4">
+                <RotateCcw size={32} className="text-primary" />
+              </div>
+              <h2 className="text-lg font-bold">Step 2: Card Back</h2>
+              <p className="text-sm text-text-muted mt-2 max-w-xs mx-auto">
+                Now flip your Ghana Card over and capture the <strong>back side</strong>. We need to verify the MRZ (machine readable zone).
+              </p>
+            </GlassCard>
+
+            <div className="glass-card p-4 space-y-3">
+              <div className="relative bg-slate-100 rounded-xl overflow-hidden" style={{ aspectRatio: CARD_ASPECT }}>
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-text-dim">
+                  <div className="border-2 border-dashed border-text-dim/30 rounded-xl w-[90%] h-[85%] flex flex-col items-center justify-center gap-2">
+                    <FileText size={32} className="text-text-dim/40" />
+                    <span className="text-xs font-medium text-text-dim/60">GHANA CARD BACK</span>
+                    <span className="text-[10px] text-text-dim/40">MRZ / BARCODE SIDE</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                onClick={() => setShowBackCamera(true)}
+                className="btn-primary w-full flex items-center justify-center gap-2 py-4"
+              >
+                <Camera size={20} /> Take Photo
+              </button>
+              <button
+                onClick={() => backGalleryRef.current?.click()}
+                className="btn-secondary w-full flex items-center justify-center gap-2 py-4"
+              >
+                <Upload size={20} /> Upload from Gallery
+              </button>
+            </div>
+
+            <input
+              ref={backGalleryRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handleBackGalleryFile}
+              className="hidden"
+            />
+          </>
+        )}
+
+        {step === 'back-preview' && (
+          <>
+            <GlassCard className="overflow-hidden p-0">
+              <img src={backImage} alt="Ghana Card Back" className="w-full rounded-xl" />
+            </GlassCard>
+
+            {backImage && <QualityCheck imageData={backImage} />}
+
+            <GlassCard className="flex items-start gap-3">
+              <AlertTriangle size={18} className="text-accent-warning flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium">Check the back image</p>
+                <ul className="text-xs text-text-muted mt-1 space-y-0.5">
+                  <li>The MRZ text lines at the bottom are visible</li>
+                  <li>Barcode or QR code is clear</li>
+                  <li>No fingers covering any details</li>
+                </ul>
+              </div>
+            </GlassCard>
+
+            <div className="flex gap-3">
+              <button onClick={handleRetakeBack} className="flex-1 bg-surface-card border border-surface-border text-text-muted font-semibold py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-all">
+                <RotateCcw size={16} /> Retake
+              </button>
+              <button onClick={handleBackVerify} className="btn-primary flex-1 flex items-center justify-center gap-2 py-3.5">
+                <Zap size={16} /> Verify Back
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === 'back-processing' && (
+          <ProcessingView steps={backSteps} current={processingStep} message="Analyzing the back of your Ghana Card..." />
+        )}
+
+        {step === 'selfie-intro' && (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <GlassCard className="text-center py-3" glow="success">
+                <Shield size={18} className="text-accent-success mx-auto mb-1" />
+                <p className="text-[10px] font-semibold text-accent-success">Front Verified</p>
+              </GlassCard>
+              <GlassCard className="text-center py-3" glow="success">
+                <FileText size={18} className="text-accent-success mx-auto mb-1" />
+                <p className="text-[10px] font-semibold text-accent-success">Back Verified</p>
+              </GlassCard>
+            </div>
+
+            <GlassCard className="text-center py-6">
+              <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-4">
                 <ScanFace size={32} className="text-primary" />
               </div>
-              <h2 className="text-lg font-bold">Step 2: Face Verification</h2>
+              <h2 className="text-lg font-bold">Step 3: Face Verification</h2>
               <p className="text-sm text-text-muted mt-2 max-w-xs mx-auto">
                 Take a selfie to confirm you are the person on the Ghana Card. This also verifies you are a real person.
               </p>
@@ -680,14 +854,18 @@ export default function KYCVerification() {
               </GlassCard>
             )}
 
-            <div className="w-full grid grid-cols-2 gap-3">
+            <div className="w-full grid grid-cols-3 gap-2">
               <GlassCard className="text-center py-3" glow="success">
-                <Shield size={20} className="text-accent-success mx-auto mb-1" />
-                <p className="text-[10px] font-semibold text-accent-success">Card Verified</p>
+                <Shield size={18} className="text-accent-success mx-auto mb-1" />
+                <p className="text-[10px] font-semibold text-accent-success">Front</p>
               </GlassCard>
               <GlassCard className="text-center py-3" glow="success">
-                <ScanFace size={20} className="text-accent-success mx-auto mb-1" />
-                <p className="text-[10px] font-semibold text-accent-success">Face Matched</p>
+                <FileText size={18} className="text-accent-success mx-auto mb-1" />
+                <p className="text-[10px] font-semibold text-accent-success">Back</p>
+              </GlassCard>
+              <GlassCard className="text-center py-3" glow="success">
+                <ScanFace size={18} className="text-accent-success mx-auto mb-1" />
+                <p className="text-[10px] font-semibold text-accent-success">Face</p>
               </GlassCard>
             </div>
 
@@ -730,7 +908,7 @@ export default function KYCVerification() {
               <h3 className="text-sm font-semibold">Tips for a successful verification:</h3>
               <ul className="text-xs text-text-muted space-y-1">
                 <li>Use good lighting with no shadows on your face</li>
-                <li>Make sure the Ghana Card photo is clear and sharp</li>
+                <li>Make sure both sides of the card are clear and sharp</li>
                 <li>Look directly at the camera for the selfie</li>
                 <li>Do not use a photo of a photo or a screenshot</li>
                 <li>Remove sunglasses and face coverings</li>

@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken'
 import { supabase } from '../config/supabase.js'
 import env from '../config/env.js'
 import { authenticate } from '../middleware/auth.js'
+import { isValidEmail, isValidPhone, isValidPassword, isValidName, isValidRole } from '../middleware/validate.js'
 
 const router = Router()
 
@@ -15,15 +16,54 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'All fields are required' })
     }
 
-    if (!['landlord', 'tenant'].includes(role)) {
+    if (!isValidName(full_name)) {
+      return res.status(400).json({ error: 'Name must be 2-200 characters' })
+    }
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ error: 'Invalid email address' })
+    }
+
+    if (!isValidPhone(phone)) {
+      return res.status(400).json({ error: 'Invalid phone number' })
+    }
+
+    if (!isValidPassword(password)) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' })
+    }
+
+    if (!isValidRole(role)) {
       return res.status(400).json({ error: 'Role must be landlord or tenant' })
+    }
+
+    if (ghana_card_number && !/^GHA-[A-Z0-9]{9}-[A-Z0-9]$/i.test(ghana_card_number.trim())) {
+      return res.status(400).json({ error: 'Invalid Ghana Card number format (GHA-XXXXXXXXX-X)' })
+    }
+
+    if (ghana_card_number) {
+      const { data: cardExists } = await supabase
+        .from('users')
+        .select('id')
+        .eq('ghana_card_number', ghana_card_number.trim().toUpperCase())
+        .single()
+
+      if (cardExists) {
+        return res.status(409).json({ error: 'This Ghana Card is already registered to another account' })
+      }
     }
 
     const password_hash = await bcrypt.hash(password, 12)
 
     const { data, error } = await supabase
       .from('users')
-      .insert({ full_name, phone, email, password_hash, role, ghana_card_number })
+      .insert({
+        full_name: full_name.trim().slice(0, 200),
+        phone,
+        email: email.toLowerCase().trim(),
+        password_hash,
+        role,
+        ghana_card_number: ghana_card_number ? ghana_card_number.trim().toUpperCase() : null,
+      })
       .select('id, full_name, phone, email, role, is_verified, created_at')
       .single()
 
@@ -43,7 +83,7 @@ router.post('/register', async (req, res) => {
     res.status(201).json({ user: data, token })
   } catch (err) {
     console.error('[Auth] Registration error:', err.message || err)
-    res.status(500).json({ error: 'Registration failed', detail: err.message })
+    res.status(500).json({ error: 'Registration failed' })
   }
 })
 
@@ -63,6 +103,10 @@ router.post('/login', async (req, res) => {
 
     if (error || !user) {
       return res.status(401).json({ error: 'Invalid credentials' })
+    }
+
+    if (!user.password_hash) {
+      return res.status(401).json({ error: 'This account uses Google Sign-In. Please log in with Google.' })
     }
 
     const valid = await bcrypt.compare(password, user.password_hash)
@@ -106,8 +150,8 @@ router.patch('/password', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Both passwords required' })
     }
 
-    if (new_password.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters' })
+    if (!isValidPassword(new_password)) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' })
     }
 
     const { data: user } = await supabase
@@ -145,7 +189,11 @@ router.patch('/complete-profile', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Phone number and role are required' })
     }
 
-    if (!['landlord', 'tenant'].includes(role)) {
+    if (!isValidPhone(phone)) {
+      return res.status(400).json({ error: 'Invalid phone number' })
+    }
+
+    if (!isValidRole(role)) {
       return res.status(400).json({ error: 'Role must be landlord or tenant' })
     }
 
@@ -189,13 +237,19 @@ router.patch('/complete-profile', authenticate, async (req, res) => {
 router.post('/google', async (req, res) => {
   try {
     const { credential } = req.body
-    if (!credential) return res.status(400).json({ error: 'Google credential required' })
+    if (!credential || typeof credential !== 'string') {
+      return res.status(400).json({ error: 'Google credential required' })
+    }
 
     const { data: tokenInfo } = await (await import('axios')).default.get(
-      `https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`
     )
 
-    const { email, name, sub: googleId, picture } = tokenInfo
+    const { email, name, sub: googleId } = tokenInfo
+
+    if (!email || !googleId) {
+      return res.status(400).json({ error: 'Invalid Google credential' })
+    }
 
     let { data: user } = await supabase
       .from('users')
@@ -221,8 +275,8 @@ router.post('/google', async (req, res) => {
         const { data: newUser, error } = await supabase
           .from('users')
           .insert({
-            full_name: name,
-            email,
+            full_name: (name || 'User').slice(0, 200),
+            email: email.toLowerCase().trim(),
             phone: `google_${googleId}`,
             role: 'tenant',
             oauth_provider: 'google',

@@ -183,6 +183,111 @@ SCORING GUIDELINES:
   }
 }
 
+export async function verifyGhanaCardBack(imageBase64, frontCardNumber) {
+  const system = `You are Escavio's KYC verification AI specializing in Ghana Card (National ID) verification.
+
+ABOUT THE GHANA CARD BACK SIDE:
+- The back of the Ghana Card contains:
+  - A Machine Readable Zone (MRZ) at the bottom — two lines of characters with << separators
+  - The card number repeated in the MRZ
+  - A barcode or QR code
+  - The holder's signature
+  - The NIA logo or text
+  - "NATIONAL IDENTIFICATION AUTHORITY" text
+  - May have a magnetic stripe at the top
+- The back does NOT have the holder's photo
+
+YOUR TASK:
+1. Determine if the image shows the BACK of a real Ghana Card
+2. Check for the MRZ zone and try to read the card number from it
+3. Assess image quality
+4. Check for signs of tampering or forgery
+
+Return ONLY a valid JSON object with no additional text or markdown:
+
+{
+  "card_detected": true or false,
+  "is_back_side": true or false,
+  "has_mrz": true or false,
+  "mrz_card_number": "card number extracted from MRZ or null",
+  "has_signature": true or false,
+  "has_barcode": true or false,
+  "image_quality": "good" or "acceptable" or "poor",
+  "authenticity_score": 0.0 to 1.0,
+  "confidence": 0.0 to 1.0,
+  "issues": ["list of any verification concerns"]
+}
+
+SCORING GUIDELINES:
+- authenticity_score 0.9+: Back appears genuine with MRZ and expected elements
+- authenticity_score 0.7-0.9: Back appears genuine but some elements unclear
+- authenticity_score below 0.5: Not a Ghana Card back or appears fake`
+
+  const userMessage = [
+    {
+      type: 'image_url',
+      image_url: { url: `data:image/jpeg;base64,${imageBase64}` },
+    },
+    {
+      type: 'text',
+      text: `Verify this is the BACK side of a Ghana Card. The front side card number is "${frontCardNumber}". Check if this back matches that card.`,
+    },
+  ]
+
+  try {
+    const { data } = await openrouter.post('/chat/completions', {
+      model: 'google/gemini-2.5-flash-lite',
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: userMessage },
+      ],
+      max_tokens: 600,
+    })
+
+    const raw = data.choices[0].message.content
+    const jsonMatch = raw.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) return { verified: false, reason: 'AI could not process the image. Please try with a clearer photo.' }
+
+    const result = JSON.parse(jsonMatch[0])
+
+    if (!result.card_detected) {
+      return { verified: false, reason: 'No Ghana Card detected. Please upload a photo of the BACK side of your Ghana Card.', extracted: result }
+    }
+
+    if (!result.is_back_side) {
+      return { verified: false, reason: 'This appears to be the front side. Please upload the BACK of your Ghana Card.', extracted: result }
+    }
+
+    if (result.image_quality === 'poor') {
+      return { verified: false, reason: `Image quality is too low. ${(result.issues || []).join(', ')}. Please retake with better lighting.`, extracted: result }
+    }
+
+    const authenticityOk = (result.authenticity_score || 0) >= 0.6
+    const hasMrz = result.has_mrz
+
+    const mrzMatch = !result.mrz_card_number || !frontCardNumber ||
+      result.mrz_card_number.replace(/[-\s]/g, '').toUpperCase().includes(frontCardNumber.replace(/[-\s]/g, '').toUpperCase().slice(4, 13))
+
+    const verified = authenticityOk && hasMrz && mrzMatch
+
+    const reasons = []
+    if (!authenticityOk) reasons.push('Card back authenticity could not be confirmed')
+    if (!hasMrz) reasons.push('Machine Readable Zone (MRZ) not detected on the back')
+    if (!mrzMatch) reasons.push('Card number in MRZ does not match the front side')
+
+    return {
+      verified,
+      reason: verified
+        ? 'Ghana Card back verified successfully'
+        : reasons.join('. ') + '.',
+      extracted: result,
+    }
+  } catch (err) {
+    console.error('[KYC Back] Error:', err.message, err.response?.status, err.response?.data?.error?.message || '')
+    return { verified: false, reason: 'Verification service temporarily unavailable. Please try again.' }
+  }
+}
+
 export async function verifyFaceMatch(cardBase64, selfieBase64, extractedName) {
   const system = `You are Escavio's face verification AI for KYC liveness and identity confirmation.
 

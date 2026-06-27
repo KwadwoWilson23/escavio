@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import { Camera, Upload, CheckCircle, XCircle, ArrowLeft, Shield, Loader2, RotateCcw, Zap, AlertTriangle, X, Search, FileText, ShieldCheck, UserCheck, ScanFace } from 'lucide-react'
+import { Camera, Upload, CheckCircle, XCircle, ArrowLeft, Shield, Loader2, RotateCcw, Zap, AlertTriangle, X, Search, FileText, ShieldCheck, UserCheck, ScanFace, Timer, Hand } from 'lucide-react'
 import GlassCard from '../components/ui/GlassCard'
 import api from '../services/api'
 
@@ -11,8 +11,11 @@ function CameraCapture({ onCapture, onClose }) {
   const videoRef = useRef()
   const canvasRef = useRef()
   const streamRef = useRef()
+  const countdownRef = useRef()
   const [ready, setReady] = useState(false)
   const [error, setError] = useState(null)
+  const [mode, setMode] = useState('manual')
+  const [countdown, setCountdown] = useState(null)
 
   useEffect(() => {
     let mounted = true
@@ -43,8 +46,29 @@ function CameraCapture({ onCapture, onClose }) {
     return () => {
       mounted = false
       streamRef.current?.getTracks().forEach(t => t.stop())
+      if (countdownRef.current) clearInterval(countdownRef.current)
     }
   }, [])
+
+  useEffect(() => {
+    if (countdownRef.current) clearInterval(countdownRef.current)
+    if (mode === 'auto' && ready) {
+      setCountdown(3)
+      countdownRef.current = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(countdownRef.current)
+            capture()
+            return null
+          }
+          return prev - 1
+        })
+      }, 1000)
+    } else {
+      setCountdown(null)
+    }
+    return () => { if (countdownRef.current) clearInterval(countdownRef.current) }
+  }, [mode, ready])
 
   function capture() {
     const video = videoRef.current
@@ -56,7 +80,12 @@ function CameraCapture({ onCapture, onClose }) {
     ctx.drawImage(video, 0, 0)
     const dataUrl = canvas.toDataURL('image/jpeg', 0.92)
     streamRef.current?.getTracks().forEach(t => t.stop())
+    if (countdownRef.current) clearInterval(countdownRef.current)
     onCapture(dataUrl)
+  }
+
+  function toggleMode() {
+    setMode(prev => prev === 'manual' ? 'auto' : 'manual')
   }
 
   if (error) {
@@ -72,42 +101,70 @@ function CameraCapture({ onCapture, onClose }) {
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
       <div className="flex items-center justify-between p-4">
-        <button onClick={() => { streamRef.current?.getTracks().forEach(t => t.stop()); onClose() }} className="text-white">
+        <button onClick={() => { if (countdownRef.current) clearInterval(countdownRef.current); streamRef.current?.getTracks().forEach(t => t.stop()); onClose() }} className="text-white">
           <X size={24} />
         </button>
         <span className="text-white text-sm font-medium">Scan Ghana Card</span>
-        <div className="w-6" />
+        <button
+          onClick={toggleMode}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+            mode === 'auto'
+              ? 'bg-primary text-white'
+              : 'bg-white/20 text-white'
+          }`}
+        >
+          {mode === 'auto' ? <Timer size={14} /> : <Hand size={14} />}
+          {mode === 'auto' ? 'Auto' : 'Manual'}
+        </button>
       </div>
       <div className="flex-1 relative overflow-hidden">
         <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="relative" style={{ width: '88%', aspectRatio: CARD_ASPECT }}>
-            <div className="absolute inset-0 border-2 border-white/80 rounded-2xl" />
+            <div className={`absolute inset-0 border-2 rounded-2xl transition-colors ${mode === 'auto' && countdown !== null ? 'border-primary' : 'border-white/80'}`} />
             <div className="absolute -top-0.5 -left-0.5 w-8 h-8 border-t-4 border-l-4 border-primary rounded-tl-2xl" />
             <div className="absolute -top-0.5 -right-0.5 w-8 h-8 border-t-4 border-r-4 border-primary rounded-tr-2xl" />
             <div className="absolute -bottom-0.5 -left-0.5 w-8 h-8 border-b-4 border-l-4 border-primary rounded-bl-2xl" />
             <div className="absolute -bottom-0.5 -right-0.5 w-8 h-8 border-b-4 border-r-4 border-primary rounded-br-2xl" />
+            {mode === 'auto' && countdown !== null && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-20 h-20 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center">
+                  <span className="text-white text-4xl font-bold">{countdown}</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
         <div className="absolute inset-x-0 top-4 flex justify-center">
           <div className="bg-black/60 backdrop-blur-sm rounded-full px-4 py-2">
             <p className="text-white text-xs font-medium text-center">
-              {ready ? 'Position your Ghana Card within the frame' : 'Starting camera...'}
+              {!ready ? 'Starting camera...' : mode === 'auto' ? 'Hold steady, auto-capturing...' : 'Position your Ghana Card within the frame'}
             </p>
           </div>
         </div>
       </div>
       <div className="p-6 flex flex-col items-center gap-3">
-        <button
-          onClick={capture}
-          disabled={!ready}
-          className="w-20 h-20 rounded-full bg-white flex items-center justify-center active:scale-90 transition-transform disabled:opacity-40"
-        >
-          <div className="w-16 h-16 rounded-full border-4 border-primary flex items-center justify-center">
-            <Camera size={28} className="text-primary" />
-          </div>
-        </button>
-        <p className="text-white/60 text-xs">Tap to capture</p>
+        {mode === 'manual' ? (
+          <>
+            <button
+              onClick={capture}
+              disabled={!ready}
+              className="w-20 h-20 rounded-full bg-white flex items-center justify-center active:scale-90 transition-transform disabled:opacity-40"
+            >
+              <div className="w-16 h-16 rounded-full border-4 border-primary flex items-center justify-center">
+                <Camera size={28} className="text-primary" />
+              </div>
+            </button>
+            <p className="text-white/60 text-xs">Tap to capture</p>
+          </>
+        ) : (
+          <>
+            <div className="w-20 h-20 rounded-full bg-white/10 border-2 border-primary/50 flex items-center justify-center">
+              <Timer size={28} className="text-primary animate-pulse" />
+            </div>
+            <p className="text-white/60 text-xs">Auto-capture in {countdown || '...'}s</p>
+          </>
+        )}
       </div>
       <canvas ref={canvasRef} className="hidden" />
     </div>
@@ -299,6 +356,7 @@ export default function KYCVerification() {
   const [showSelfie, setShowSelfie] = useState(false)
   const [processingStep, setProcessingStep] = useState(0)
   const [failReason, setFailReason] = useState('')
+  const [failType, setFailType] = useState('general')
   const galleryRef = useRef()
   const backGalleryRef = useRef()
   const navigate = useNavigate()
@@ -410,6 +468,9 @@ export default function KYCVerification() {
       timers.forEach(clearTimeout)
       const msg = err.response?.data?.reason || err.response?.data?.error || 'Verification service unavailable. Please check your connection and try again.'
       setFailReason(msg)
+      if (err.response?.status === 409) {
+        setFailType('duplicate')
+      }
       setStep('failed')
     }
   }
@@ -485,6 +546,7 @@ export default function KYCVerification() {
     setBackResult(null)
     setFaceResult(null)
     setFailReason('')
+    setFailType('general')
     setStep('intro')
     setProcessingStep(0)
   }
@@ -880,7 +942,55 @@ export default function KYCVerification() {
           </div>
         )}
 
-        {step === 'failed' && (
+        {step === 'failed' && failType === 'duplicate' && (
+          <div className="flex flex-col items-center justify-center py-8 space-y-6">
+            <div className="w-24 h-24 rounded-full bg-red-50 flex items-center justify-center">
+              <ShieldCheck size={56} className="text-accent-danger" />
+            </div>
+            <div className="text-center">
+              <h2 className="text-xl font-bold">Ghana Card Already Used</h2>
+              <p className="text-sm text-text-muted mt-2 max-w-xs">
+                This Ghana Card is already registered to another Escavio account. Each card can only be linked to one account.
+              </p>
+            </div>
+
+            <GlassCard className="w-full" glow="danger">
+              <div className="flex items-start gap-3">
+                <AlertTriangle size={20} className="text-accent-danger flex-shrink-0 mt-0.5" />
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold">Why am I seeing this?</p>
+                  <ul className="text-xs text-text-muted space-y-1.5">
+                    <li>Someone has already verified with this Ghana Card number.</li>
+                    <li>For security, one Ghana Card can only be used for one account.</li>
+                    <li>If you believe this is an error, please contact support.</li>
+                  </ul>
+                </div>
+              </div>
+            </GlassCard>
+
+            <GlassCard className="w-full">
+              <h3 className="text-sm font-semibold mb-2">What you can do:</h3>
+              <ul className="text-xs text-text-muted space-y-1.5">
+                <li>If you already have another account, log in with that account instead.</li>
+                <li>If someone else used your card without permission, contact our support team for assistance.</li>
+              </ul>
+            </GlassCard>
+
+            <div className="w-full space-y-3">
+              <a href="tel:0504399802" className="btn-primary w-full flex items-center justify-center gap-2 py-3">
+                <Camera size={16} /> Call Support: 0504399802
+              </a>
+              <a href="mailto:support@escavio.site" className="btn-secondary w-full flex items-center justify-center gap-2 py-3">
+                Email Support
+              </a>
+              <button onClick={() => navigate('/profile')} className="bg-surface-card border border-surface-border text-text-muted font-semibold py-3 rounded-full w-full active:scale-95 transition-all">
+                Back to Profile
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 'failed' && failType !== 'duplicate' && (
           <div className="flex flex-col items-center justify-center py-8 space-y-6">
             <div className="w-24 h-24 rounded-full bg-red-50 flex items-center justify-center">
               <XCircle size={56} className="text-accent-danger" />

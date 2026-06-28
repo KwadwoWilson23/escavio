@@ -66,19 +66,40 @@ export async function verifyGhanaCard(imageBase64, userProfile) {
   const system = `You are Escavio's KYC verification AI specializing in Ghana Card (National ID) verification.
 
 ABOUT THE GHANA CARD:
-- Issued by the National Identification Authority (NIA) of Ghana
+- Officially called the "Ghana Card", issued by the National Identification Authority (NIA) of Ghana
+- It is part of the ECOWAS National Biometric Identity Card system
 - Standard credit-card size (85.6mm x 53.98mm), polycarbonate material
-- Front side contains: holder's photo (left side), full name, date of birth, gender (M/F), nationality, card number in format GHA-XXXXXXXXX-X (where X is alphanumeric), issue and expiry dates
-- Has the Ghana coat of arms, NIA logo, and "REPUBLIC OF GHANA" text at the top
-- Background has security patterns and the Ghana flag colors (red, gold, green)
-- The card number always starts with "GHA-" followed by 9 alphanumeric characters, a hyphen, and 1 check digit
-- Modern cards have a chip on the front
+
+FRONT SIDE FEATURES (expect ALL of these on a valid card):
+- Header text "ECOWAS IDENTITY CARD" — this is the STANDARD, CORRECT header on every valid Ghana Card
+- ECOWAS logo (top left corner) — this is EXPECTED and REQUIRED, not suspicious
+- "REPUBLIC OF GHANA" text
+- Ghana flag (top right corner)
+- Holder's photo (left side) with an embedded smart chip (gold chip)
+- Surname / Nom
+- Firstnames / Prénoms
+- Previous Name(s) / Noms Précédents (if applicable)
+- Nationality / Nationalité (e.g. "GHANAIAN")
+- Sex / Sexe (M or F)
+- Date of Birth / Date de Naissance
+- Height / Taille (in meters)
+- Personal ID Number format: GHA-XXXXXXXXX-X (always starts with "GHA-", 9 alphanumeric characters, a hyphen, and 1 check digit)
+- Document Number (alphanumeric, e.g. BP9815979)
+- Place of Issuance / Lieu de délivrance
+- Date of Issuance / Date d'émission
+- Date of Expiry / Date d'expiration
+
+CRITICAL — DO NOT FLAG THESE AS ISSUES:
+- "ECOWAS IDENTITY CARD" header is CORRECT and EXPECTED — do NOT treat it as suspicious
+- ECOWAS logo is CORRECT and REQUIRED — do NOT flag its presence as an anomaly
+- The absence of a standalone "NIA" logo on the card face is NORMAL — NIA is the issuing authority but does not print a separate logo on the front
+- Bilingual French/English labels (Surname/Nom, Sex/Sexe) are STANDARD on the Ghana Card
 
 YOUR TASK:
 1. Determine if the image shows the FRONT of a real Ghana Card
 2. Extract all readable text fields
 3. Assess image quality (blur, glare, cropping, lighting)
-4. Check for signs the card might be fake (wrong fonts, missing security elements, edited text, screen photo of a photo)
+4. Check ONLY for genuine fraud indicators: inconsistent fonts, visible digital editing, photo of a screen/photo, tampered text, missing core fields
 
 Return ONLY a valid JSON object with no additional text or markdown:
 
@@ -93,21 +114,22 @@ Return ONLY a valid JSON object with no additional text or markdown:
   "issue_date": "text or null",
   "expiry_date": "text or null",
   "has_photo": true or false,
-  "has_coat_of_arms": true or false,
-  "has_nia_logo": true or false,
+  "has_ecowas_branding": true or false,
+  "has_ghana_flag": true or false,
   "image_quality": "good" or "acceptable" or "poor",
   "image_issues": ["list of specific image quality problems"],
   "authenticity_score": 0.0 to 1.0,
   "confidence": 0.0 to 1.0,
-  "issues": ["list of any verification concerns"]
+  "issues": ["list of GENUINE verification concerns only — never include ECOWAS branding"]
 }
 
 SCORING GUIDELINES:
-- authenticity_score 0.9+: Card appears genuine with all expected elements visible
-- authenticity_score 0.7-0.9: Card appears genuine but some elements are unclear
-- authenticity_score 0.5-0.7: Card has some concerning elements, may need manual review
-- authenticity_score below 0.5: Card appears fake, is a screenshot, or is not a Ghana Card
-- confidence reflects how well you can read the text (1.0 = crystal clear, 0.5 = partially readable)`
+- authenticity_score 0.9+: Card appears genuine with ECOWAS branding, photo, name, ID number, and dates all visible
+- authenticity_score 0.7-0.9: Card appears genuine but some fields are unclear
+- authenticity_score 0.5-0.7: Card has genuine concerns (tampered, cropped, or very blurry)
+- authenticity_score below 0.5: Card appears fake, is a screenshot/photo-of-photo, or is not a Ghana Card
+- confidence reflects how well you can read the text (1.0 = crystal clear, 0.5 = partially readable)
+- ECOWAS branding should INCREASE the authenticity score, not decrease it`
 
   const userMessage = [
     {
@@ -158,17 +180,27 @@ SCORING GUIDELINES:
 
     const cardNumberValid = result.card_number && /^GHA-[A-Z0-9]{9}-[A-Z0-9]$/i.test(result.card_number.trim())
 
+    let isExpired = false
+    if (result.expiry_date) {
+      const parts = result.expiry_date.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/)
+      if (parts) {
+        const expiry = new Date(parseInt(parts[3]), parseInt(parts[2]) - 1, parseInt(parts[1]))
+        isExpired = expiry < new Date()
+      }
+    }
+
     const authenticityOk = (result.authenticity_score || 0) >= 0.6
     const confidenceOk = (result.confidence || 0) >= 0.5
 
-    const verified = nameMatch && cardMatch && authenticityOk && confidenceOk
+    const verified = nameMatch && cardMatch && authenticityOk && confidenceOk && !isExpired
 
     const reasons = []
-    if (!nameMatch) reasons.push(`Name on card "${result.full_name || 'unreadable'}" does not match your profile name "${userProfile.full_name}"`)
+    if (!nameMatch) reasons.push(`The name on your ID card "${result.full_name || 'unreadable'}" does not match your profile name "${userProfile.full_name}". Please update your profile name to match your Ghana Card exactly, then try again`)
     if (!cardMatch) reasons.push('Card number does not match your registered card number')
-    if (!authenticityOk) reasons.push('Card authenticity could not be confirmed')
-    if (!confidenceOk) reasons.push('Image is too unclear to read card details')
-    if (!cardNumberValid && result.card_number) reasons.push('Card number format appears invalid')
+    if (!authenticityOk) reasons.push('Card authenticity could not be confirmed — please ensure you are uploading a real, physical Ghana Card and not a screenshot or photocopy')
+    if (!confidenceOk) reasons.push('We could not read your card clearly. Please retake the photo in good lighting with the full card visible')
+    if (!cardNumberValid && result.card_number) reasons.push('This does not appear to be a valid Ghana Card number format. Please ensure you are uploading a Ghana Card, not another document')
+    if (isExpired) reasons.push(`Your Ghana Card has expired (${result.expiry_date}). Please upload a valid, unexpired card`)
 
     return {
       verified,
@@ -187,14 +219,14 @@ export async function verifyGhanaCardBack(imageBase64, frontCardNumber) {
   const system = `You are Escavio's KYC verification AI specializing in Ghana Card (National ID) verification.
 
 ABOUT THE GHANA CARD BACK SIDE:
-- The back of the Ghana Card contains:
-  - A Machine Readable Zone (MRZ) at the bottom — two lines of characters with << separators
+- The back of the Ghana Card (ECOWAS National Biometric Identity Card) contains:
+  - A Machine Readable Zone (MRZ) at the bottom — two or three lines of characters with << separators
   - The card number repeated in the MRZ
   - A barcode or QR code
   - The holder's signature
-  - The NIA logo or text
-  - "NATIONAL IDENTIFICATION AUTHORITY" text
+  - "NATIONAL IDENTIFICATION AUTHORITY" or NIA-related text (may vary)
   - May have a magnetic stripe at the top
+  - ECOWAS branding may also appear on the back — this is NORMAL and EXPECTED
 - The back does NOT have the holder's photo
 
 YOUR TASK:

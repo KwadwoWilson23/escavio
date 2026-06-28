@@ -10,6 +10,16 @@ const openrouter = axios.create({
   },
 })
 
+function cleanAiResponse(text) {
+  return text
+    .replace(/\*\*/g, '')
+    .replace(/\*/g, '')
+    .replace(/^[-•]\s+/gm, '')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2702}-\u{27B0}\u{231A}-\u{231B}\u{2328}\u{23CF}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{25AA}-\u{25AB}\u{25B6}\u{25C0}\u{25FB}-\u{25FE}\u{2614}-\u{2615}\u{2648}-\u{2653}\u{267F}\u{2693}\u{26A1}\u{26AA}-\u{26AB}\u{26BD}-\u{26BE}\u{26C4}-\u{26C5}\u{26CE}\u{26D4}\u{26EA}\u{26F2}-\u{26F3}\u{26F5}\u{26FA}\u{26FD}\u{2702}\u{2705}\u{2708}-\u{270D}\u{270F}]/gu, '')
+    .trim()
+}
+
 async function getUserByPhone(phone) {
   const cleaned = phone.replace(/\D/g, '')
   const variants = [cleaned, `0${cleaned.slice(-9)}`, `+233${cleaned.slice(-9)}`, `233${cleaned.slice(-9)}`]
@@ -230,7 +240,7 @@ export async function handleIncomingMessage(phone, messageText, webContext) {
       max_tokens: 500,
     })
 
-    const reply = data.choices[0].message.content
+    const reply = cleanAiResponse(data.choices[0].message.content)
     if (!isWebChat) {
       await saveMessage(user.id, phone, 'assistant', reply)
     }

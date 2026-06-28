@@ -8,7 +8,7 @@ const MAX_MESSAGES = 50
 
 function loadHistory(userId) {
   try {
-    const stored = localStorage.getItem(`${STORAGE_KEY_PREFIX}${userId}`)
+    const stored = sessionStorage.getItem(`${STORAGE_KEY_PREFIX}${userId}`)
     return stored ? JSON.parse(stored) : []
   } catch {
     return []
@@ -17,7 +17,7 @@ function loadHistory(userId) {
 
 function saveHistory(userId, messages) {
   const capped = messages.slice(-MAX_MESSAGES)
-  localStorage.setItem(`${STORAGE_KEY_PREFIX}${userId}`, JSON.stringify(capped))
+  sessionStorage.setItem(`${STORAGE_KEY_PREFIX}${userId}`, JSON.stringify(capped))
 }
 
 export default function AgentChat() {

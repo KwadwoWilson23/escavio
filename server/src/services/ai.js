@@ -107,7 +107,8 @@ Return ONLY a valid JSON object with no additional text or markdown:
   "card_detected": true or false,
   "is_front_side": true or false,
   "full_name": "exact name on card or null",
-  "card_number": "GHA-XXXXXXXXX-X or null",
+  "card_number": "GHA-XXXXXXXXX-X or null (this is the Personal ID Number)",
+  "document_number": "shorter alphanumeric code like BP9815979 or AC2926692 or null (this is the Document Number, a SEPARATE field from the Personal ID Number)",
   "date_of_birth": "DD/MM/YYYY or null",
   "gender": "M or F or null",
   "nationality": "text or null",
@@ -215,13 +216,21 @@ SCORING GUIDELINES:
   }
 }
 
-export async function verifyGhanaCardBack(imageBase64, frontCardNumber) {
+function normalizeForOcr(str) {
+  if (!str) return ''
+  return str
+    .replace(/[<\s\-]/g, '')
+    .toUpperCase()
+    .replace(/O/g, '0')
+    .replace(/[Il]/g, '1')
+}
+
+export async function verifyGhanaCardBack(imageBase64, frontDocNumber) {
   const system = `You are Escavio's KYC verification AI specializing in Ghana Card (National ID) verification.
 
 ABOUT THE GHANA CARD BACK SIDE:
 - The back of the Ghana Card (ECOWAS National Biometric Identity Card) contains:
-  - A Machine Readable Zone (MRZ) at the bottom — two or three lines of characters with << separators
-  - The card number repeated in the MRZ
+  - A Machine Readable Zone (MRZ) at the bottom in ICAO 9303 TD1 format — three lines, 30 characters each
   - A barcode or QR code
   - The holder's signature
   - "NATIONAL IDENTIFICATION AUTHORITY" or NIA-related text (may vary)
@@ -229,11 +238,26 @@ ABOUT THE GHANA CARD BACK SIDE:
   - ECOWAS branding may also appear on the back — this is NORMAL and EXPECTED
 - The back does NOT have the holder's photo
 
+MRZ FORMAT (ICAO 9303 TD1 — three lines of 30 characters):
+Line 1: I<GHA[DOCUMENT_NUMBER][CHECK_DIGIT]<<<<<<<<<<<<<<<
+Line 2: [DOB_YYMMDD][CHECK][SEX][EXPIRY_YYMMDD][CHECK][NATIONALITY]<<<[CHECK]
+Line 3: [SURNAME]<<[FIRSTNAMES]<<<<<<<<<<<<<<<<<<<<<<
+
+CRITICAL DISTINCTION:
+- The DOCUMENT NUMBER in the MRZ (line 1, after "GHA") is a short alphanumeric code like "AC2926692" or "BP9815979"
+- This is the same as the "Document Number" / "No. du document" printed on the FRONT of the card
+- This is NOT the Personal ID Number (which is a longer code in format GHA-XXXXXXXXX-X)
+- The MRZ document number and the Personal ID Number are two COMPLETELY DIFFERENT identifiers on the same card
+- You must extract the DOCUMENT NUMBER from the MRZ, never compare it against the Personal ID Number
+
+If the image appears rotated or sideways, mentally correct the orientation before reading the MRZ characters.
+
 YOUR TASK:
 1. Determine if the image shows the BACK of a real Ghana Card
-2. Check for the MRZ zone and try to read the card number from it
-3. Assess image quality
-4. Check for signs of tampering or forgery
+2. Locate the MRZ zone and extract the DOCUMENT NUMBER from line 1 (after "I<GHA", before the check digit and filler "<" characters)
+3. Strip all "<" filler characters from extracted values
+4. Assess image quality
+5. Check for signs of tampering or forgery
 
 Return ONLY a valid JSON object with no additional text or markdown:
 
@@ -241,7 +265,8 @@ Return ONLY a valid JSON object with no additional text or markdown:
   "card_detected": true or false,
   "is_back_side": true or false,
   "has_mrz": true or false,
-  "mrz_card_number": "card number extracted from MRZ or null",
+  "mrz_document_number": "document number extracted from MRZ line 1 (e.g. AC2926692) with all < fillers stripped, or null",
+  "mrz_raw_line1": "raw MRZ line 1 as read, or null",
   "has_signature": true or false,
   "has_barcode": true or false,
   "image_quality": "good" or "acceptable" or "poor",
@@ -262,7 +287,9 @@ SCORING GUIDELINES:
     },
     {
       type: 'text',
-      text: `Verify this is the BACK side of a Ghana Card. The front side card number is "${frontCardNumber}". Check if this back matches that card.`,
+      text: frontDocNumber
+        ? `Verify this is the BACK side of a Ghana Card. The DOCUMENT NUMBER from the front side is "${frontDocNumber}". Extract the document number from the MRZ line 1 and check if it matches. Remember: the document number is NOT the Personal ID Number (GHA-XXXXXXXXX-X format) — it is the shorter alphanumeric code.`
+        : `Verify this is the BACK side of a Ghana Card. Extract the document number from the MRZ line 1. The document number is the short alphanumeric code after "I<GHA" in MRZ line 1 — NOT the Personal ID Number.`,
     },
   ]
 
@@ -297,15 +324,22 @@ SCORING GUIDELINES:
     const authenticityOk = (result.authenticity_score || 0) >= 0.6
     const hasMrz = result.has_mrz
 
-    const mrzMatch = !result.mrz_card_number || !frontCardNumber ||
-      result.mrz_card_number.replace(/[-\s]/g, '').toUpperCase().includes(frontCardNumber.replace(/[-\s]/g, '').toUpperCase().slice(4, 13))
+    let docNumberMatch = true
+    if (frontDocNumber && result.mrz_document_number) {
+      const normalizedFront = normalizeForOcr(frontDocNumber)
+      const normalizedMrz = normalizeForOcr(result.mrz_document_number)
+      docNumberMatch = normalizedFront === normalizedMrz
+      if (!docNumberMatch) {
+        console.log(`[KYC Back] Document number mismatch — front: "${frontDocNumber}" (normalized: "${normalizedFront}"), MRZ: "${result.mrz_document_number}" (normalized: "${normalizedMrz}"), raw line1: "${result.mrz_raw_line1 || 'N/A'}"`)
+      }
+    }
 
-    const verified = authenticityOk && hasMrz && mrzMatch
+    const verified = authenticityOk && hasMrz && docNumberMatch
 
     const reasons = []
     if (!authenticityOk) reasons.push('Card back authenticity could not be confirmed')
     if (!hasMrz) reasons.push('Machine Readable Zone (MRZ) not detected on the back')
-    if (!mrzMatch) reasons.push('Card number in MRZ does not match the front side')
+    if (!docNumberMatch) reasons.push(`Document number in MRZ ("${result.mrz_document_number}") does not match the front side ("${frontDocNumber}"). Please ensure you are uploading the back of the same card`)
 
     return {
       verified,

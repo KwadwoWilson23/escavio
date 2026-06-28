@@ -69,7 +69,7 @@ router.post('/test', async (req, res) => {
 
 router.post('/chat', authenticate, async (req, res) => {
   try {
-    const { message } = req.body
+    const { message, context } = req.body
     if (!message) return res.status(400).json({ error: 'message required' })
 
     const { data: user } = await supabase
@@ -79,7 +79,8 @@ router.post('/chat', authenticate, async (req, res) => {
       .single()
 
     const phone = user?.phone || `web-${req.user.id}`
-    const reply = await handleIncomingMessage(phone, message)
+    const chatContext = Array.isArray(context) ? context.slice(-10) : []
+    const reply = await handleIncomingMessage(phone, message, chatContext)
     res.json({ reply })
   } catch (err) {
     res.status(500).json({ error: 'Chat failed' })

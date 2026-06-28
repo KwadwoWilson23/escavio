@@ -181,6 +181,65 @@ router.patch('/password', authenticate, async (req, res) => {
   }
 })
 
+router.patch('/profile', authenticate, async (req, res) => {
+  try {
+    const { full_name, phone } = req.body
+    const updates = {}
+
+    if (full_name !== undefined) {
+      if (!isValidName(full_name)) {
+        return res.status(400).json({ error: 'Name must be 2-200 characters' })
+      }
+      updates.full_name = full_name.trim().slice(0, 200)
+    }
+
+    if (phone !== undefined) {
+      if (!isValidPhone(phone)) {
+        return res.status(400).json({ error: 'Invalid phone number' })
+      }
+      const cleaned = phone.replace(/\D/g, '')
+      let normalized = cleaned
+      if (cleaned.startsWith('0') && cleaned.length === 10) normalized = '233' + cleaned.slice(1)
+      else if (cleaned.length === 9) normalized = '233' + cleaned
+      else if (!cleaned.startsWith('233')) normalized = cleaned
+
+      const { data: existing } = await supabase
+        .from('users')
+        .select('id')
+        .eq('phone', normalized)
+        .neq('id', req.user.id)
+        .single()
+
+      if (existing) {
+        return res.status(409).json({ error: 'This phone number is already registered to another account' })
+      }
+      updates.phone = normalized
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'No fields to update' })
+    }
+
+    const { error } = await supabase
+      .from('users')
+      .update(updates)
+      .eq('id', req.user.id)
+
+    if (error) throw error
+
+    const { data: updated } = await supabase
+      .from('users')
+      .select('id, full_name, phone, email, role, ghana_card_number, is_verified, created_at')
+      .eq('id', req.user.id)
+      .single()
+
+    res.json(updated)
+  } catch (err) {
+    console.error('[Auth] Profile update error:', err.message)
+    res.status(500).json({ error: 'Failed to update profile' })
+  }
+})
+
 router.patch('/complete-profile', authenticate, async (req, res) => {
   try {
     const { phone, role } = req.body

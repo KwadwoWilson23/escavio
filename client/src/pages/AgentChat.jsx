@@ -1,21 +1,37 @@
 import { useState, useEffect, useRef } from 'react'
-import { Send, Bot, Phone, Mail, Sparkles } from 'lucide-react'
-import { ChatSkeleton } from '../components/ui/Skeleton'
+import { Send, Phone, Mail, Sparkles } from 'lucide-react'
+import { useAuth } from '../hooks/useAuth'
 import api from '../services/api'
 
+const STORAGE_KEY_PREFIX = 'escavio_chat_'
+const MAX_MESSAGES = 50
+
+function loadHistory(userId) {
+  try {
+    const stored = localStorage.getItem(`${STORAGE_KEY_PREFIX}${userId}`)
+    return stored ? JSON.parse(stored) : []
+  } catch {
+    return []
+  }
+}
+
+function saveHistory(userId, messages) {
+  const capped = messages.slice(-MAX_MESSAGES)
+  localStorage.setItem(`${STORAGE_KEY_PREFIX}${userId}`, JSON.stringify(capped))
+}
+
 export default function AgentChat() {
+  const { user } = useAuth()
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
-  const [loading, setLoading] = useState(true)
   const bottomRef = useRef()
 
   useEffect(() => {
-    api.get('/whatsapp/conversations')
-      .then(({ data }) => setMessages(data || []))
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [])
+    if (user?.id) {
+      setMessages(loadHistory(user.id))
+    }
+  }, [user?.id])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -27,14 +43,25 @@ export default function AgentChat() {
 
     const userMsg = input.trim()
     setInput('')
-    setMessages(prev => [...prev, { role: 'user', content: userMsg, created_at: new Date().toISOString() }])
+
+    const userEntry = { role: 'user', content: userMsg, timestamp: new Date().toISOString() }
+    const updated = [...messages, userEntry]
+    setMessages(updated)
+    saveHistory(user.id, updated)
     setSending(true)
 
     try {
-      const { data } = await api.post('/whatsapp/chat', { message: userMsg })
-      setMessages(prev => [...prev, { role: 'assistant', content: data.reply, created_at: new Date().toISOString() }])
+      const recentContext = updated.slice(-10).map(m => ({ role: m.role, content: m.content }))
+      const { data } = await api.post('/whatsapp/chat', { message: userMsg, context: recentContext })
+      const assistantEntry = { role: 'assistant', content: data.reply, timestamp: new Date().toISOString() }
+      const withReply = [...updated, assistantEntry]
+      setMessages(withReply)
+      saveHistory(user.id, withReply)
     } catch {
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, I couldn\'t process that. Please try again.', created_at: new Date().toISOString() }])
+      const errorEntry = { role: 'assistant', content: 'Sorry, I could not process that. Please try again.', timestamp: new Date().toISOString() }
+      const withError = [...updated, errorEntry]
+      setMessages(withError)
+      saveHistory(user.id, withError)
     } finally {
       setSending(false)
     }
@@ -57,9 +84,7 @@ export default function AgentChat() {
       </div>
 
       <div className="flex-1 overflow-y-auto space-y-3 pb-4">
-        {loading ? (
-          <ChatSkeleton />
-        ) : messages.length === 0 ? (
+        {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full space-y-5">
             <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-blue-700 flex items-center justify-center shadow-lg">
               <Sparkles size={36} className="text-white" />

@@ -176,13 +176,20 @@ COMMON ISSUES & TROUBLESHOOTING:
    - Tell them to check their SMS inbox, it may take up to 2 minutes.
    - If no OTP after 2 minutes, they should cancel and retry the payment.
 
+RESPONSE FORMAT:
+- Respond in plain conversational text only. Do not use markdown formatting of any kind.
+- Do not use asterisks, dashes as bullet points, hashtags, underscores, or any other markdown symbols.
+- Do not use emojis.
+- Write in complete, natural sentences as if speaking to someone directly.
+- If you need to list multiple items, write them as a flowing sentence or use numbered words like "first, second, third" instead of symbols or line breaks with dashes.
+
 Rules:
 - Be warm, friendly, and use simple English a market trader can understand
 - All amounts in GHS (Ghana Cedis)
 - If a tenant asks to pay, tell them to use the Escavio web app
 - If someone owes money, be firm but respectful
 - Reference the Ghana Rent Act 2026 (max 6 months advance) when relevant
-- For WhatsApp messages, keep responses under 300 characters. For web chat, you can be more detailed (up to 500 characters)
+- Keep responses concise and conversational (under 500 characters for web chat, under 300 for WhatsApp)
 - You can greet in Twi if the user writes in Twi
 - Never share other users' personal data (phone numbers, addresses, payment details of other users)
 - Escavio is the middleman — tenants and landlords never communicate directly
@@ -190,7 +197,7 @@ Rules:
 - When a user has stuck/pending transactions, proactively mention the Refresh button fix`
 }
 
-export async function handleIncomingMessage(phone, messageText) {
+export async function handleIncomingMessage(phone, messageText, webContext) {
   const user = await getUserByPhone(phone)
 
   if (!user) {
@@ -198,14 +205,21 @@ export async function handleIncomingMessage(phone, messageText) {
   }
 
   const context = await getUserContext(user)
-  const history = await getConversationHistory(phone)
   const systemPrompt = buildSystemPrompt(user, context)
 
-  await saveMessage(user.id, phone, 'user', messageText)
+  const isWebChat = Array.isArray(webContext)
+  let conversationHistory
+  if (isWebChat) {
+    conversationHistory = webContext.map(m => ({ role: m.role, content: m.content }))
+  } else {
+    const history = await getConversationHistory(phone)
+    conversationHistory = history.map(h => ({ role: h.role, content: h.content }))
+    await saveMessage(user.id, phone, 'user', messageText)
+  }
 
   const messages = [
     { role: 'system', content: systemPrompt },
-    ...history.map(h => ({ role: h.role, content: h.content })),
+    ...conversationHistory,
     { role: 'user', content: messageText },
   ]
 
@@ -217,10 +231,12 @@ export async function handleIncomingMessage(phone, messageText) {
     })
 
     const reply = data.choices[0].message.content
-    await saveMessage(user.id, phone, 'assistant', reply)
+    if (!isWebChat) {
+      await saveMessage(user.id, phone, 'assistant', reply)
+    }
     return reply
   } catch {
-    return 'Sorry, I\'m having trouble right now. Please try again in a moment or use the Escavio app.'
+    return 'Sorry, I am having trouble right now. Please try again in a moment or use the Escavio app.'
   }
 }
 

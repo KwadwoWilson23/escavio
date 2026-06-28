@@ -22,7 +22,7 @@ async function chat(systemPrompt, userMessage) {
 }
 
 export async function summarizeLease(lease) {
-  const system = `You are Escavio's AI assistant. Summarize lease terms in plain English that a market trader in Ghana can understand. Keep it to 3 sentences max. Use simple words. Mention the key financial details.`
+  const system = `You are Escavio's AI assistant. Summarize lease terms in plain English that a market trader in Ghana can understand. Keep it to 3 sentences max. Use simple words. Mention the key financial details. Respond in plain text only. Do not use markdown, asterisks, dashes as bullets, or emojis.`
 
   const user = `Lease details:
 - Monthly rent: GHS ${lease.monthly_amount}
@@ -36,7 +36,7 @@ export async function summarizeLease(lease) {
 }
 
 export async function analyzeDispute(dispute, payments) {
-  const system = `You are Escavio's neutral AI mediator for rental disputes in Ghana. Analyze the dispute, suggest a fair resolution, and recommend whether escalation is needed. Be concise, fair, and reference the Ghana Rent Act 2026 where applicable.`
+  const system = `You are Escavio's neutral AI mediator for rental disputes in Ghana. Analyze the dispute, suggest a fair resolution, and recommend whether escalation is needed. Be concise, fair, and reference the Ghana Rent Act 2026 where applicable. Respond in plain text only. Do not use markdown, asterisks, dashes as bullets, or emojis.`
 
   const paymentHistory = payments
     .map(p => `${p.due_date}: GHS ${p.amount} - ${p.status}`)
@@ -51,7 +51,7 @@ ${paymentHistory || 'No payment records'}`
 }
 
 export async function generatePaymentReminder(tenant, amount, daysUntilDue, paymentHistory) {
-  const system = `You are Escavio's SMS assistant. Generate a warm, culturally appropriate payment reminder SMS for a Ghanaian tenant. Keep it under 160 characters. Be respectful and encouraging, not threatening.`
+  const system = `You are Escavio's SMS assistant. Generate a warm, culturally appropriate payment reminder SMS for a Ghanaian tenant. Keep it under 160 characters. Be respectful and encouraging, not threatening. Do not use emojis or markdown formatting.`
 
   const paidCount = paymentHistory.filter(p => p.status === 'success').length
   const user = `Tenant: ${tenant.full_name}

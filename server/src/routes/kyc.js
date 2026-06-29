@@ -44,15 +44,19 @@ router.post('/verify-front', authenticate, async (req, res) => {
         })
       }
 
-      const updates = { ghana_card_number: cardNumber }
-      if (result.extracted.document_number) {
-        updates.ghana_card_doc_number = result.extracted.document_number.trim().toUpperCase()
-      }
-
       await supabase
         .from('users')
-        .update(updates)
+        .update({ ghana_card_number: cardNumber })
         .eq('id', req.user.id)
+
+      if (result.extracted.document_number) {
+        await supabase
+          .from('users')
+          .update({ ghana_card_doc_number: result.extracted.document_number.trim().toUpperCase() })
+          .eq('id', req.user.id)
+          .then(() => {})
+          .catch(() => {})
+      }
     }
 
     if (!result.verified) {
@@ -79,7 +83,7 @@ router.post('/verify-back', authenticate, async (req, res) => {
 
     const { data: user } = await supabase
       .from('users')
-      .select('full_name, ghana_card_number, ghana_card_doc_number, is_verified')
+      .select('full_name, ghana_card_number, is_verified')
       .eq('id', req.user.id)
       .single()
 
@@ -90,8 +94,18 @@ router.post('/verify-back', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Please verify the front of your Ghana Card first' })
     }
 
+    let docNumber = null
+    try {
+      const { data: docData } = await supabase
+        .from('users')
+        .select('ghana_card_doc_number')
+        .eq('id', req.user.id)
+        .single()
+      docNumber = docData?.ghana_card_doc_number || null
+    } catch {}
+
     const base64 = image.replace(/^data:image\/\w+;base64,/, '')
-    const result = await verifyGhanaCardBack(base64, user.ghana_card_doc_number || null)
+    const result = await verifyGhanaCardBack(base64, docNumber)
 
     if (!result.verified) {
       await supabase

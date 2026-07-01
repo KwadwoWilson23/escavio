@@ -3,7 +3,18 @@
   "outputDirectory": "client/dist",
   "installCommand": "cd client && npm install",
   "framework": "vite",
+  "headers": [
+    {
+      "source": "/sitemap.xml",
+      "headers": [{ "key": "Content-Type", "value": "application/xml" }]
+    },
+    {
+      "source": "/robots.txt",
+      "headers": [{ "key": "Content-Type", "value": "text/plain" }]
+    }
+  ],
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/api/(.*)", "destination": "https://escavio.onrender.com/api/$1" },
+    { "source": "/((?!sitemap\\.xml|robots\\.txt|manifest\\.json|sw\\.js|og-image\\.png|favicon.*|icon-.*|apple-touch-icon\\.png|logo\\.svg).*)", "destination": "/index.html" }
   ]
 }

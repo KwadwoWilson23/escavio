@@ -148,23 +148,29 @@ export async function validateName({ phone }) {
   }
 }
 
-export async function disbursePayment({ amount, phone, reference }) {
+export async function disbursePayment({ amount, phone, reference, callbackUrl }) {
   const norm = normalizePhone(phone)
   const channel = detectChannel(norm)
 
   const local = toLocalPhone(norm)
   console.log(`[Moolre] Transfer: GHS ${amount} to ${local} via ${channel.name} (${channel.transferCode}), ref: ${reference}`)
 
+  const payload = {
+    type: 1,
+    channel: channel.transferCode,
+    currency: 'GHS',
+    amount: String(amount),
+    receiver: local,
+    externalref: reference,
+    accountnumber: ACCOUNT_NUMBER,
+  }
+
+  if (callbackUrl) {
+    payload.callbackurl = callbackUrl
+  }
+
   try {
-    const { data } = await apiClient.post('/open/transact/transfer', {
-      type: 1,
-      channel: channel.transferCode,
-      currency: 'GHS',
-      amount: String(amount),
-      receiver: local,
-      externalref: reference,
-      accountnumber: ACCOUNT_NUMBER,
-    })
+    const { data } = await apiClient.post('/open/transact/transfer', payload)
     console.log(`[Moolre] Transfer response:`, JSON.stringify(data))
     return data
   } catch (err) {

@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { supabase } from '../config/supabase.js'
 import { authenticate } from '../middleware/auth.js'
-import { collectPayment, checkPaymentStatus, disbursePayment, parseTxStatus, normalizePhone, verifyPaymentOTP } from '../services/moolre.js'
+import { collectPayment, checkPaymentStatus, checkTransferStatus, disbursePayment, parseTxStatus, normalizePhone, verifyPaymentOTP } from '../services/moolre.js'
 import { isValidAmount, isValidPhone, isValidOTP, isValidUUID } from '../middleware/validate.js'
 import env from '../config/env.js'
 
@@ -92,7 +92,6 @@ router.post('/reconcile', authenticate, async (req, res) => {
       .from('wallet_transactions')
       .select('*')
       .eq('wallet_id', wallet.id)
-      .eq('type', 'deposit')
       .in('status', ['pending', 'processing'])
       .order('created_at', { ascending: false })
       .limit(10)
@@ -107,17 +106,32 @@ router.post('/reconcile', authenticate, async (req, res) => {
     for (const txn of stuck) {
       if (!txn.reference) continue
       try {
-        const moolreResult = await checkPaymentStatus(txn.reference)
-        const txstatus = moolreResult?.data?.txstatus
+        const statusCheck = txn.type === 'withdrawal'
+          ? await checkTransferStatus(txn.reference)
+          : await checkPaymentStatus(txn.reference)
+        const txstatus = statusCheck?.data?.txstatus
         if (txstatus === undefined) continue
 
         const mapped = parseTxStatus(txstatus)
 
-        if (mapped === 'success') {
+        if (mapped === 'success' && txn.type === 'deposit') {
           currentBalance += Number(txn.amount)
           await supabase
             .from('wallet_transactions')
             .update({ status: 'success', balance_after: currentBalance })
+            .eq('id', txn.id)
+          reconciled++
+        } else if (mapped === 'success' && txn.type === 'withdrawal') {
+          await supabase
+            .from('wallet_transactions')
+            .update({ status: 'success' })
+            .eq('id', txn.id)
+          reconciled++
+        } else if (mapped === 'failed' && txn.type === 'withdrawal') {
+          currentBalance += Number(txn.amount)
+          await supabase
+            .from('wallet_transactions')
+            .update({ status: 'failed', balance_after: currentBalance })
             .eq('id', txn.id)
           reconciled++
         } else if (mapped === 'failed') {
@@ -526,48 +540,142 @@ router.post('/withdraw', authenticate, async (req, res) => {
 
     const reference = `WW-${req.user.id.slice(0, 8)}-${Date.now()}`
     const newBalance = Number(wallet.balance) - Number(amount)
+    const callbackUrl = env.appBaseUrl !== 'http://localhost:5000'
+      ? `${env.appBaseUrl}/api/webhooks/moolre-wallet`
+      : undefined
 
     await supabase
       .from('wallets')
       .update({ balance: newBalance, updated_at: new Date().toISOString() })
       .eq('id', wallet.id)
 
+    const { data: txn, error: txnErr } = await supabase
+      .from('wallet_transactions')
+      .insert({
+        wallet_id: wallet.id,
+        user_id: req.user.id,
+        type: 'withdrawal',
+        amount: Number(amount),
+        balance_after: newBalance,
+        description: altPhone ? `Withdrawal to MoMo (${normalizePhone(altPhone)})` : 'Withdrawal to MoMo',
+        reference,
+        status: 'processing',
+      })
+      .select()
+      .single()
+
+    if (txnErr) throw txnErr
+
     try {
-      await disbursePayment({
+      const moolreResult = await disbursePayment({
         amount: Number(amount),
         phone: withdrawPhone,
         reference,
+        callbackUrl,
       })
 
-      await supabase
-        .from('wallet_transactions')
-        .insert({
-          wallet_id: wallet.id,
-          user_id: req.user.id,
-          type: 'withdrawal',
-          amount: Number(amount),
-          balance_after: newBalance,
-          description: 'Withdrawal to MoMo',
+      const txstatus = moolreResult?.data?.txstatus
+      const mapped = txstatus !== undefined ? parseTxStatus(txstatus) : null
+
+      if (mapped === 'success') {
+        await supabase
+          .from('wallet_transactions')
+          .update({ status: 'success' })
+          .eq('id', txn.id)
+
+        res.json({
+          message: `GHS ${Number(amount).toFixed(2)} sent to your MoMo wallet.`,
+          balance: newBalance,
           reference,
-          status: 'success',
+          transaction_id: txn.id,
         })
+      } else if (mapped === 'failed') {
+        await supabase
+          .from('wallets')
+          .update({ balance: Number(wallet.balance), updated_at: new Date().toISOString() })
+          .eq('id', wallet.id)
 
-      res.json({
-        message: `GHS ${Number(amount).toFixed(2)} sent to your MoMo wallet.`,
-        balance: newBalance,
-        reference,
-      })
+        await supabase
+          .from('wallet_transactions')
+          .update({ status: 'failed', balance_after: Number(wallet.balance) })
+          .eq('id', txn.id)
+
+        res.status(502).json({ error: 'Transfer was declined. Your balance has been restored.' })
+      } else {
+        res.json({
+          message: `Withdrawal of GHS ${Number(amount).toFixed(2)} is being processed. You will receive it shortly.`,
+          balance: newBalance,
+          reference,
+          transaction_id: txn.id,
+        })
+      }
     } catch (err) {
       await supabase
         .from('wallets')
         .update({ balance: Number(wallet.balance), updated_at: new Date().toISOString() })
         .eq('id', wallet.id)
 
+      await supabase
+        .from('wallet_transactions')
+        .update({ status: 'failed', balance_after: Number(wallet.balance) })
+        .eq('id', txn.id)
+
       res.status(502).json({ error: 'Withdrawal failed. Your balance has been restored.' })
     }
   } catch (err) {
     console.error('[Wallet] Withdraw error:', err.message)
     res.status(500).json({ error: 'Withdrawal failed' })
+  }
+})
+
+router.get('/withdraw-status/:id', authenticate, async (req, res) => {
+  try {
+    const { data: txn } = await supabase
+      .from('wallet_transactions')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .eq('type', 'withdrawal')
+      .single()
+
+    if (!txn) return res.status(404).json({ error: 'Transaction not found' })
+
+    if (['pending', 'processing'].includes(txn.status) && txn.reference) {
+      try {
+        const moolreResult = await checkTransferStatus(txn.reference)
+        const txstatus = moolreResult?.data?.txstatus
+        if (txstatus !== undefined) {
+          const mapped = parseTxStatus(txstatus)
+          if (mapped === 'success') {
+            await supabase
+              .from('wallet_transactions')
+              .update({ status: 'success' })
+              .eq('id', txn.id)
+            return res.json({ ...txn, status: 'success' })
+          }
+          if (mapped === 'failed') {
+            const wallet = await getOrCreateWallet(req.user.id)
+            const restoredBalance = Number(wallet.balance) + Number(txn.amount)
+
+            await supabase
+              .from('wallets')
+              .update({ balance: restoredBalance, updated_at: new Date().toISOString() })
+              .eq('id', wallet.id)
+
+            await supabase
+              .from('wallet_transactions')
+              .update({ status: 'failed', balance_after: restoredBalance })
+              .eq('id', txn.id)
+
+            return res.json({ ...txn, status: 'failed', balance_after: restoredBalance })
+          }
+        }
+      } catch {}
+    }
+
+    res.json(txn)
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to check withdrawal status' })
   }
 })
 

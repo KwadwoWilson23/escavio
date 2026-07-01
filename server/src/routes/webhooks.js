@@ -221,11 +221,56 @@ router.post('/moolre-wallet', async (req, res) => {
       .from('wallet_transactions')
       .select('*')
       .eq('reference', ref)
-      .eq('type', 'deposit')
       .single()
 
     if (!txn) return res.status(404).json({ error: 'Transaction not found' })
     if (txn.status === 'success') return res.json({ received: true, already_processed: true })
+
+    const wallet = await getOrCreateWallet(txn.user_id)
+    const { data: txnUser } = await supabase.from('users').select('phone').eq('id', txn.user_id).single()
+    const userPhone = txnUser?.phone
+
+    if (txn.type === 'withdrawal') {
+      if (isFailed) {
+        const restoredBalance = Number(wallet.balance) + Number(txn.amount)
+        await supabase
+          .from('wallets')
+          .update({ balance: restoredBalance, updated_at: new Date().toISOString() })
+          .eq('id', wallet.id)
+
+        await supabase
+          .from('wallet_transactions')
+          .update({ status: 'failed', balance_after: restoredBalance })
+          .eq('id', txn.id)
+
+        if (userPhone) {
+          sendSMS({
+            phone: userPhone,
+            message: `Escavio: Your withdrawal of GHS ${Number(txn.amount).toFixed(2)} failed. Your balance has been restored. Ref: ${ref}`,
+          }).catch(() => {})
+        }
+
+        console.log(`[Webhook] Wallet withdrawal ${txn.id} failed, balance restored`)
+        return res.json({ received: true, result: 'withdrawal_failed_restored' })
+      }
+
+      if (isSuccess) {
+        await supabase
+          .from('wallet_transactions')
+          .update({ status: 'success' })
+          .eq('id', txn.id)
+
+        if (userPhone) {
+          sendSMS({
+            phone: userPhone,
+            message: `Escavio: GHS ${Number(txn.amount).toFixed(2)} sent to your MoMo. Balance: GHS ${Number(wallet.balance).toFixed(2)}. Ref: ${ref}`,
+          }).catch(() => {})
+        }
+
+        console.log(`[Webhook] Wallet withdrawal ${txn.id} success`)
+        return res.json({ received: true, result: 'wallet_withdrawal_success' })
+      }
+    }
 
     if (isFailed) {
       await supabase
@@ -235,7 +280,6 @@ router.post('/moolre-wallet', async (req, res) => {
       return res.json({ received: true, result: 'failed' })
     }
 
-    const wallet = await getOrCreateWallet(txn.user_id)
     const newBalance = Number(wallet.balance) + Number(txn.amount)
 
     await supabase
@@ -248,10 +292,12 @@ router.post('/moolre-wallet', async (req, res) => {
       .update({ status: 'success', balance_after: newBalance })
       .eq('id', txn.id)
 
-    sendSMS({
-      phone: (await supabase.from('users').select('phone').eq('id', txn.user_id).single()).data?.phone,
-      message: `Escavio: GHS ${Number(txn.amount).toFixed(2)} deposited to your wallet. Balance: GHS ${newBalance.toFixed(2)}. Ref: ${ref}`,
-    }).catch(() => {})
+    if (userPhone) {
+      sendSMS({
+        phone: userPhone,
+        message: `Escavio: GHS ${Number(txn.amount).toFixed(2)} deposited to your wallet. Balance: GHS ${newBalance.toFixed(2)}. Ref: ${ref}`,
+      }).catch(() => {})
+    }
 
     console.log(`[Webhook] Wallet deposit ${txn.id} success, new balance: ${newBalance}`)
     res.json({ received: true, result: 'wallet_deposit_success' })

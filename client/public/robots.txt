@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard/
+Disallow: /profile
+Disallow: /settings
+Disallow: /notifications
+Disallow: /complete-profile
+Disallow: /api/
+
+Sitemap: https://escavio.site/sitemap.xml

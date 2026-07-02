@@ -125,7 +125,7 @@ router.get('/available', authenticate, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('properties')
-      .select('*, landlord:users!properties_landlord_id_fkey(is_verified, is_blacklisted, verification_status, created_at)')
+      .select('*, landlord:users!properties_landlord_id_fkey(is_verified, is_blacklisted, verification_status, trust_level, created_at)')
       .eq('status', 'vacant')
       .order('created_at', { ascending: false })
 
@@ -162,7 +162,7 @@ router.get('/:id', authenticate, async (req, res) => {
 
     const { data, error } = await supabase
       .from('properties')
-      .select('*, landlord:users!properties_landlord_id_fkey(is_verified, verification_status, created_at)')
+      .select('*, landlord:users!properties_landlord_id_fkey(is_verified, verification_status, trust_level, created_at)')
       .eq('id', req.params.id)
       .single()
 

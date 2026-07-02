@@ -1,6 +1,6 @@
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import { CheckCircle, Eye, EyeOff, Edit2, LogOut, CreditCard, FileText, ShieldCheck, ArrowRight, Shield, Download, Smartphone, X, MessageSquare, AlertTriangle } from 'lucide-react'
+import { CheckCircle, Eye, EyeOff, Edit2, LogOut, CreditCard, FileText, ShieldCheck, ArrowRight, Shield, Download, Smartphone, X, MessageSquare, AlertTriangle, FolderCheck } from 'lucide-react'
 import { useState } from 'react'
 import GlassCard from '../components/ui/GlassCard'
 import Badge from '../components/ui/Badge'
@@ -151,6 +151,7 @@ export default function Profile() {
         <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Account Settings</h3>
         <div className="space-y-3">
           {[
+            { icon: FolderCheck, label: 'Verification Documents', to: '/dashboard/documents' },
             { icon: CreditCard, label: 'Payment Methods', to: '/dashboard/pay' },
             { icon: FileText, label: 'Lease Documents', to: '/dashboard/lease' },
             { icon: AlertTriangle, label: 'Disputes', to: '/dashboard/disputes' },

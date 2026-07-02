@@ -33,6 +33,7 @@ import Messages from './pages/Messages'
 import ChatRoom from './pages/ChatRoom'
 import Community from './pages/Community'
 import CommunityPost from './pages/CommunityPost'
+import VerificationDocs from './pages/VerificationDocs'
 
 function NeedsPhone({ children }) {
   const { user } = useAuth()
@@ -93,6 +94,7 @@ export default function App() {
         <Route path="/dashboard/community" element={<Community />} />
         <Route path="/dashboard/community/:id" element={<CommunityPost />} />
         <Route path="/dashboard/kyc" element={<KYCVerification />} />
+        <Route path="/dashboard/documents" element={<VerificationDocs />} />
         <Route path="/dashboard/agent" element={<AgentChat />} />
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/profile" element={<Profile />} />

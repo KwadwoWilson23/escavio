@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Building2, MapPin, CheckCircle, Home, BedDouble, Store, LayoutGrid, Search, SlidersHorizontal, X, ShieldCheck, ShieldAlert, AlertTriangle } from 'lucide-react'
+import { Building2, MapPin, CheckCircle, Home, BedDouble, Store, LayoutGrid, Search, SlidersHorizontal, X, ShieldCheck, ShieldAlert, AlertTriangle, Star } from 'lucide-react'
 import { PropertyGridSkeleton } from '../../components/ui/Skeleton'
 import GlassCard from '../../components/ui/GlassCard'
 import Badge from '../../components/ui/Badge'
@@ -180,9 +180,19 @@ export default function BrowseProperties() {
                   <div className="flex items-center justify-between mt-3 pt-3 border-t border-surface-border">
                     <p className="text-lg font-bold text-primary">{formatGHS(prop.monthly_rent)}<span className="text-xs text-text-muted font-normal">/mo</span></p>
                     {prop.landlord?.verification_status === 'verified' ? (
-                      <span className="flex items-center gap-1 text-[10px] text-accent-success font-semibold">
-                        <ShieldCheck size={12} /> Verified Landlord
-                      </span>
+                      prop.landlord.trust_level === 'premium' ? (
+                        <span className="flex items-center gap-1 text-[10px] text-accent-success font-semibold">
+                          <Star size={12} className="fill-current" /> Premium Verified
+                        </span>
+                      ) : prop.landlord.trust_level === 'trusted' ? (
+                        <span className="flex items-center gap-1 text-[10px] text-blue-600 font-semibold">
+                          <ShieldCheck size={12} /> Trusted Landlord
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-[10px] text-accent-success font-semibold">
+                          <ShieldCheck size={12} /> Verified Landlord
+                        </span>
+                      )
                     ) : prop.landlord?.verification_status === 'rejected' ? (
                       <span className="flex items-center gap-1 text-[10px] text-red-500 font-semibold">
                         <ShieldAlert size={12} /> Unverified

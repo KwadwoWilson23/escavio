@@ -243,7 +243,7 @@ router.get('/status', authenticate, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('users')
-      .select('is_verified, kyc_verified_at, kyc_rejection_reason, ghana_card_number')
+      .select('is_verified, kyc_verified_at, kyc_rejection_reason, ghana_card_number, trust_level, role')
       .eq('id', req.user.id)
       .single()
 
@@ -251,6 +251,151 @@ router.get('/status', authenticate, async (req, res) => {
     res.json(data)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch KYC status' })
+  }
+})
+
+const LANDLORD_DOC_TYPES = ['property_title_deed', 'utility_bill', 'business_registration']
+const TENANT_DOC_TYPES = ['employment_letter', 'momo_statement', 'bank_statement', 'business_registration_income']
+
+router.post('/documents', authenticate, async (req, res) => {
+  try {
+    const { doc_type, image } = req.body
+
+    const { data: user } = await supabase
+      .from('users')
+      .select('role, is_verified')
+      .eq('id', req.user.id)
+      .single()
+
+    if (!user) return res.status(404).json({ error: 'User not found' })
+
+    const allowedTypes = user.role === 'landlord' ? LANDLORD_DOC_TYPES : TENANT_DOC_TYPES
+    if (!allowedTypes.includes(doc_type)) {
+      return res.status(400).json({ error: 'Invalid document type for your role' })
+    }
+
+    if (!image || typeof image !== 'string') {
+      return res.status(400).json({ error: 'Document image is required' })
+    }
+
+    const { data: existing } = await supabase
+      .from('verification_documents')
+      .select('id')
+      .eq('user_id', req.user.id)
+      .eq('doc_type', doc_type)
+      .single()
+
+    if (existing) {
+      return res.status(400).json({ error: 'You have already submitted this document type. Please wait for review.' })
+    }
+
+    let base64Data = image
+    let mimeType = 'image/jpeg'
+    if (image.startsWith('data:')) {
+      const match = image.match(/^data:(image\/\w+);base64,(.+)$/)
+      if (!match) return res.status(400).json({ error: 'Invalid image format' })
+      mimeType = match[1]
+      base64Data = match[2]
+    }
+
+    const buffer = Buffer.from(base64Data, 'base64')
+    if (buffer.length > 10 * 1024 * 1024) {
+      return res.status(400).json({ error: 'Document must be under 10MB' })
+    }
+
+    const crypto = await import('crypto')
+    const ext = mimeType === 'image/png' ? 'png' : 'jpg'
+    const filename = `docs/${req.user.id}/${doc_type}_${crypto.randomUUID()}.${ext}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('property-images')
+      .upload(filename, buffer, { contentType: mimeType, upsert: false })
+
+    if (uploadError) {
+      console.error('[KYC] Doc upload error:', uploadError.message)
+      return res.status(500).json({ error: 'Failed to upload document' })
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('property-images')
+      .getPublicUrl(filename)
+
+    const { data: doc, error: insertError } = await supabase
+      .from('verification_documents')
+      .insert({
+        user_id: req.user.id,
+        doc_type,
+        image_url: urlData.publicUrl,
+        status: 'pending',
+      })
+      .select()
+      .single()
+
+    if (insertError) throw insertError
+
+    res.status(201).json(doc)
+  } catch (err) {
+    console.error('[KYC] Document submit error:', err.message)
+    res.status(500).json({ error: 'Failed to submit document' })
+  }
+})
+
+router.get('/documents', authenticate, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('verification_documents')
+      .select('*')
+      .eq('user_id', req.user.id)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    res.json(data || [])
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch documents' })
+  }
+})
+
+router.post('/documents/:id/approve', authenticate, async (req, res) => {
+  try {
+    const { data: doc, error: fetchErr } = await supabase
+      .from('verification_documents')
+      .select('*')
+      .eq('id', req.params.id)
+      .single()
+
+    if (fetchErr || !doc) return res.status(404).json({ error: 'Document not found' })
+
+    await supabase
+      .from('verification_documents')
+      .update({ status: 'approved', reviewed_at: new Date().toISOString() })
+      .eq('id', req.params.id)
+
+    const { data: allDocs } = await supabase
+      .from('verification_documents')
+      .select('doc_type')
+      .eq('user_id', doc.user_id)
+      .eq('status', 'approved')
+
+    const approvedCount = (allDocs || []).length
+    let trustLevel = 'basic'
+    if (approvedCount >= 3) trustLevel = 'premium'
+    else if (approvedCount >= 2) trustLevel = 'trusted'
+
+    await supabase
+      .from('users')
+      .update({ trust_level: trustLevel })
+      .eq('id', doc.user_id)
+
+    createNotification({
+      userId: doc.user_id,
+      message: `Your ${doc.doc_type.replace(/_/g, ' ')} has been verified. Trust level: ${trustLevel}.`,
+      type: 'alert',
+    }).catch(() => {})
+
+    res.json({ trust_level: trustLevel, approved_count: approvedCount })
+  } catch (err) {
+    console.error('[KYC] Approve error:', err.message)
+    res.status(500).json({ error: 'Failed to approve document' })
   }
 })
 

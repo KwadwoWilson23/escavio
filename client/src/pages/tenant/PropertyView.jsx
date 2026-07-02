@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Building2, MapPin, BedDouble, CheckCircle, Shield, Droplets, Zap, Car, ShieldCheck, Wifi, Wind, TreePine, Utensils, Loader2, AlertCircle, MessageSquare, Phone, Star, ShieldAlert, AlertTriangle } from 'lucide-react'
+const trustLabels = { basic: 'Identity Verified', trusted: 'Trusted Landlord', premium: 'Premium Verified Landlord' }
 import { DetailSkeleton } from '../../components/ui/Skeleton'
 import GlassCard from '../../components/ui/GlassCard'
 import Badge from '../../components/ui/Badge'
@@ -187,11 +188,18 @@ export default function PropertyView() {
         <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Managed By</h3>
         <div className="flex items-center gap-3">
           <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-            property.landlord?.verification_status === 'verified' ? 'bg-green-50' :
-            property.landlord?.verification_status === 'rejected' ? 'bg-red-50' : 'bg-amber-50'
+            property.landlord?.verification_status === 'verified'
+              ? (property.landlord.trust_level === 'premium' ? 'bg-green-50' : property.landlord.trust_level === 'trusted' ? 'bg-blue-50' : 'bg-green-50')
+              : property.landlord?.verification_status === 'rejected' ? 'bg-red-50' : 'bg-amber-50'
           }`}>
             {property.landlord?.verification_status === 'verified' ? (
-              <ShieldCheck size={22} className="text-accent-success" />
+              property.landlord.trust_level === 'premium' ? (
+                <Star size={22} className="text-accent-success fill-accent-success" />
+              ) : property.landlord.trust_level === 'trusted' ? (
+                <ShieldCheck size={22} className="text-blue-600" />
+              ) : (
+                <ShieldCheck size={22} className="text-accent-success" />
+              )
             ) : property.landlord?.verification_status === 'rejected' ? (
               <ShieldAlert size={22} className="text-red-500" />
             ) : (
@@ -200,18 +208,27 @@ export default function PropertyView() {
           </div>
           <div className="flex-1">
             <p className="font-semibold">
-              {property.landlord?.verification_status === 'verified' ? 'Escavio Verified Landlord' :
-               property.landlord?.verification_status === 'rejected' ? 'Unverified Landlord' :
-               'Landlord (Pending Verification)'}
+              {property.landlord?.verification_status === 'verified'
+                ? (trustLabels[property.landlord.trust_level] || 'Escavio Verified Landlord')
+                : property.landlord?.verification_status === 'rejected' ? 'Unverified Landlord'
+                : 'Landlord (Pending Verification)'}
             </p>
             {property.landlord?.verification_status === 'verified' ? (
-              <span className="flex items-center gap-0.5 text-[10px] text-accent-success font-semibold">
-                <CheckCircle size={10} /> Identity Verified
+              <span className={`flex items-center gap-0.5 text-[10px] font-semibold ${
+                property.landlord.trust_level === 'premium' ? 'text-accent-success' :
+                property.landlord.trust_level === 'trusted' ? 'text-blue-600' : 'text-accent-success'
+              }`}>
+                <CheckCircle size={10} /> {trustLabels[property.landlord.trust_level] || 'Identity Verified'}
               </span>
             ) : (
               <span className="text-[10px] text-text-dim">
                 {property.landlord?.created_at && `Member since ${new Date(property.landlord.created_at).toLocaleDateString('en-GH', { month: 'short', year: 'numeric' })}`}
               </span>
+            )}
+            {property.landlord?.created_at && property.landlord?.verification_status === 'verified' && (
+              <p className="text-[10px] text-text-dim mt-0.5">
+                Member since {new Date(property.landlord.created_at).toLocaleDateString('en-GH', { month: 'short', year: 'numeric' })}
+              </p>
             )}
           </div>
         </div>

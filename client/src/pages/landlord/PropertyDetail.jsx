@@ -117,9 +117,19 @@ export default function PropertyDetail() {
         <h1 className="text-xl font-bold flex-1 truncate">{property.address}</h1>
       </div>
 
-      <div className="h-44 bg-surface-card border border-surface-border rounded-2xl flex items-center justify-center">
-        <Building2 size={56} className="text-text-dim" />
-      </div>
+      {property.images?.length > 0 || property.image_url ? (
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 snap-x snap-mandatory">
+          {(property.images?.length > 0 ? property.images : [property.image_url]).map((img, i) => (
+            <div key={i} className="w-full flex-shrink-0 snap-center">
+              <img src={img} alt={`Property ${i + 1}`} className="w-full h-44 object-cover rounded-2xl border border-surface-border" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="h-44 bg-surface-card border border-surface-border rounded-2xl flex items-center justify-center">
+          <Building2 size={56} className="text-text-dim" />
+        </div>
+      )}
 
       <div className="flex items-center gap-2 flex-wrap">
         <Badge variant={property.status === 'occupied' ? 'success' : property.status === 'vacant' ? 'info' : 'warning'}>

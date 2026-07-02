@@ -149,13 +149,18 @@ export default function BrowseProperties() {
         <div className="space-y-3">
           {filtered.map(prop => {
             const Icon = typeIcons[prop.property_type] || Building2
+            const thumb = prop.image_url || prop.images?.[0] || null
             const amenities = Array.isArray(prop.amenities) ? prop.amenities : []
             return (
               <Link key={prop.id} to={`/dashboard/browse/${prop.id}`}>
                 <GlassCard>
                   <div className="flex gap-4">
-                    <div className="w-20 h-20 bg-surface-border/30 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <Icon size={28} className="text-text-dim" />
+                    <div className="w-20 h-20 rounded-xl flex-shrink-0 overflow-hidden bg-surface-border/30 flex items-center justify-center">
+                      {thumb ? (
+                        <img src={thumb} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <Icon size={28} className="text-text-dim" />
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">

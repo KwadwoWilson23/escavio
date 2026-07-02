@@ -4,6 +4,7 @@ import { authenticate } from '../middleware/auth.js'
 import { notifyBoth } from '../services/notify.js'
 import { sendSMS } from '../services/moolre.js'
 import { getOrCreateWallet } from './wallet.js'
+import { isValidUUID } from '../middleware/validate.js'
 
 const router = Router()
 
@@ -260,6 +261,53 @@ router.get('/mine', authenticate, async (req, res) => {
     res.json(data)
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch leases' })
+  }
+})
+
+router.delete('/:id', authenticate, async (req, res) => {
+  try {
+    if (!isValidUUID(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid lease ID' })
+    }
+
+    const { data: lease } = await supabase
+      .from('leases')
+      .select('id, status, landlord_id, tenant_id, property_id')
+      .eq('id', req.params.id)
+      .single()
+
+    if (!lease) {
+      return res.status(404).json({ error: 'Lease not found' })
+    }
+
+    if (lease.landlord_id !== req.user.id) {
+      return res.status(403).json({ error: 'Only the landlord can delete this lease' })
+    }
+
+    if (lease.status === 'active' || lease.status === 'at_risk') {
+      return res.status(400).json({ error: 'Cannot delete an active lease. End the lease first.' })
+    }
+
+    const { error } = await supabase
+      .from('leases')
+      .delete()
+      .eq('id', req.params.id)
+      .eq('landlord_id', req.user.id)
+
+    if (error) throw error
+
+    if (lease.property_id) {
+      await supabase
+        .from('properties')
+        .update({ status: 'vacant' })
+        .eq('id', lease.property_id)
+        .in('status', ['pending'])
+    }
+
+    res.json({ message: 'Lease deleted' })
+  } catch (err) {
+    console.error('[Leases] Delete error:', err.message)
+    res.status(500).json({ error: 'Failed to delete lease' })
   }
 })
 

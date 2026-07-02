@@ -13,8 +13,8 @@ const tenantLinks = [
 const landlordLinks = [
   { to: '/dashboard', icon: Home, label: 'Home' },
   { to: '/dashboard/properties', icon: Building2, label: 'Properties' },
-  { to: '/dashboard/agent', icon: Sparkles, label: 'Ama' },
   { to: '/dashboard/leases', icon: ScrollText, label: 'Leases' },
+  { to: '/dashboard/disputes', icon: Shield, label: 'Disputes' },
   { to: '/profile', icon: User, label: 'Profile' },
 ]
 

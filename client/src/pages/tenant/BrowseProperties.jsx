@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Building2, MapPin, CheckCircle, Home, BedDouble, Store, LayoutGrid, Search, SlidersHorizontal, X } from 'lucide-react'
+import { Building2, MapPin, CheckCircle, Home, BedDouble, Store, LayoutGrid, Search, SlidersHorizontal, X, ShieldCheck, ShieldAlert, AlertTriangle } from 'lucide-react'
 import { PropertyGridSkeleton } from '../../components/ui/Skeleton'
 import GlassCard from '../../components/ui/GlassCard'
 import Badge from '../../components/ui/Badge'
@@ -179,9 +179,19 @@ export default function BrowseProperties() {
                   </div>
                   <div className="flex items-center justify-between mt-3 pt-3 border-t border-surface-border">
                     <p className="text-lg font-bold text-primary">{formatGHS(prop.monthly_rent)}<span className="text-xs text-text-muted font-normal">/mo</span></p>
-                    <span className="flex items-center gap-1 text-[10px] text-accent-success font-semibold">
-                      <CheckCircle size={10} /> Verified
-                    </span>
+                    {prop.landlord?.verification_status === 'verified' ? (
+                      <span className="flex items-center gap-1 text-[10px] text-accent-success font-semibold">
+                        <ShieldCheck size={12} /> Verified Landlord
+                      </span>
+                    ) : prop.landlord?.verification_status === 'rejected' ? (
+                      <span className="flex items-center gap-1 text-[10px] text-red-500 font-semibold">
+                        <ShieldAlert size={12} /> Unverified
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-[10px] text-amber-500 font-semibold">
+                        <AlertTriangle size={12} /> Pending KYC
+                      </span>
+                    )}
                   </div>
                   {amenities.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mt-2">

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Building2, MapPin, BedDouble, CheckCircle, Shield, Droplets, Zap, Car, ShieldCheck, Wifi, Wind, TreePine, Utensils, Loader2, AlertCircle, MessageSquare, Phone, Star } from 'lucide-react'
+import { ArrowLeft, Building2, MapPin, BedDouble, CheckCircle, Shield, Droplets, Zap, Car, ShieldCheck, Wifi, Wind, TreePine, Utensils, Loader2, AlertCircle, MessageSquare, Phone, Star, ShieldAlert, AlertTriangle } from 'lucide-react'
 import { DetailSkeleton } from '../../components/ui/Skeleton'
 import GlassCard from '../../components/ui/GlassCard'
 import Badge from '../../components/ui/Badge'
@@ -90,6 +90,30 @@ export default function PropertyView() {
         )}
       </div>
 
+      {property.landlord?.verification_status === 'rejected' && (
+        <GlassCard className="border-red-300 bg-red-50/50">
+          <div className="flex items-start gap-3">
+            <ShieldAlert size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-red-700 text-sm">Unverified Landlord</p>
+              <p className="text-xs text-red-600/80 mt-1">This landlord's identity could not be verified by Escavio. We strongly advise against engaging with this listing.</p>
+            </div>
+          </div>
+        </GlassCard>
+      )}
+
+      {property.landlord && property.landlord.verification_status !== 'verified' && property.landlord.verification_status !== 'rejected' && (
+        <GlassCard className="border-amber-300 bg-amber-50/50">
+          <div className="flex items-start gap-3">
+            <AlertTriangle size={20} className="text-amber-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-amber-700 text-sm">Low Trust: Verification Pending</p>
+              <p className="text-xs text-amber-600/80 mt-1">This landlord has not yet completed identity verification on Escavio. Proceed with caution and do not make any payments outside the app.</p>
+            </div>
+          </div>
+        </GlassCard>
+      )}
+
       <GlassCard glow="primary">
         <div className="flex items-center justify-between">
           <div>
@@ -162,14 +186,33 @@ export default function PropertyView() {
       <GlassCard>
         <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Managed By</h3>
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-            <Shield size={22} className="text-primary" />
+          <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+            property.landlord?.verification_status === 'verified' ? 'bg-green-50' :
+            property.landlord?.verification_status === 'rejected' ? 'bg-red-50' : 'bg-amber-50'
+          }`}>
+            {property.landlord?.verification_status === 'verified' ? (
+              <ShieldCheck size={22} className="text-accent-success" />
+            ) : property.landlord?.verification_status === 'rejected' ? (
+              <ShieldAlert size={22} className="text-red-500" />
+            ) : (
+              <AlertTriangle size={22} className="text-amber-500" />
+            )}
           </div>
           <div className="flex-1">
-            <p className="font-semibold">Escavio Verified Landlord</p>
-            <span className="flex items-center gap-0.5 text-[10px] text-accent-success font-semibold">
-              <CheckCircle size={10} /> Identity Verified
-            </span>
+            <p className="font-semibold">
+              {property.landlord?.verification_status === 'verified' ? 'Escavio Verified Landlord' :
+               property.landlord?.verification_status === 'rejected' ? 'Unverified Landlord' :
+               'Landlord (Pending Verification)'}
+            </p>
+            {property.landlord?.verification_status === 'verified' ? (
+              <span className="flex items-center gap-0.5 text-[10px] text-accent-success font-semibold">
+                <CheckCircle size={10} /> Identity Verified
+              </span>
+            ) : (
+              <span className="text-[10px] text-text-dim">
+                {property.landlord?.created_at && `Member since ${new Date(property.landlord.created_at).toLocaleDateString('en-GH', { month: 'short', year: 'numeric' })}`}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex gap-2 mt-3 pt-3 border-t border-surface-border">

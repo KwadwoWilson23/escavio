@@ -53,6 +53,7 @@ export default function AddProperty() {
     amenities: [],
   })
   const [photos, setPhotos] = useState([])
+  const [uploading, setUploading] = useState(false)
   const photoRef = useRef(null)
   const [docType, setDocType] = useState('land_title')
   const [docImage, setDocImage] = useState(null)
@@ -77,17 +78,29 @@ export default function AddProperty() {
     }))
   }
 
-  function handlePhotoAdd(e) {
+  async function handlePhotoAdd(e) {
     const files = Array.from(e.target.files || [])
-    files.forEach(file => {
-      if (photos.length >= 4) return
-      const reader = new FileReader()
-      reader.onload = (ev) => {
-        setPhotos(prev => prev.length < 4 ? [...prev, ev.target.result] : prev)
-      }
-      reader.readAsDataURL(file)
-    })
+    if (files.length === 0) return
     e.target.value = ''
+    setUploading(true)
+    for (const file of files) {
+      if (photos.length >= 5) break
+      try {
+        const base64 = await new Promise((resolve) => {
+          const reader = new FileReader()
+          reader.onload = (ev) => resolve(ev.target.result)
+          reader.readAsDataURL(file)
+        })
+        const { data } = await api.post('/upload/property-image', { image: base64 })
+        if (data.url) {
+          setPhotos(prev => prev.length < 5 ? [...prev, data.url] : prev)
+        }
+      } catch (err) {
+        console.error('Photo upload failed:', err)
+        setSaveError('Photo upload failed. Try a smaller image.')
+      }
+    }
+    setUploading(false)
   }
 
   function removePhoto(index) {
@@ -293,7 +306,7 @@ export default function AddProperty() {
 
           <div>
             <label className="text-xs font-semibold text-text-muted tracking-wider uppercase mb-3 block">
-              Property Photos <span className="text-text-dim font-normal">(up to 4)</span>
+              Property Photos <span className="text-text-dim font-normal">(up to 5)</span>
             </label>
             <div className="grid grid-cols-2 gap-2">
               {photos.map((photo, i) => (
@@ -308,14 +321,24 @@ export default function AddProperty() {
                   </button>
                 </div>
               ))}
-              {photos.length < 4 && (
+              {photos.length < 5 && (
                 <button
                   type="button"
-                  onClick={() => photoRef.current?.click()}
-                  className="aspect-[4/3] rounded-xl border-2 border-dashed border-surface-border bg-surface-card flex flex-col items-center justify-center gap-1.5 hover:border-primary/40 transition-colors"
+                  onClick={() => !uploading && photoRef.current?.click()}
+                  disabled={uploading}
+                  className="aspect-[4/3] rounded-xl border-2 border-dashed border-surface-border bg-surface-card flex flex-col items-center justify-center gap-1.5 hover:border-primary/40 transition-colors disabled:opacity-50"
                 >
-                  <Camera size={22} className="text-text-dim" />
-                  <span className="text-[11px] text-text-muted font-medium">Add Photo</span>
+                  {uploading ? (
+                    <>
+                      <Loader2 size={22} className="text-primary animate-spin" />
+                      <span className="text-[11px] text-text-muted font-medium">Uploading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Camera size={22} className="text-text-dim" />
+                      <span className="text-[11px] text-text-muted font-medium">Add Photo</span>
+                    </>
+                  )}
                 </button>
               )}
             </div>

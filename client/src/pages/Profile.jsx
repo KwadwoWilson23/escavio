@@ -1,6 +1,6 @@
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import { CheckCircle, Eye, EyeOff, Edit2, LogOut, CreditCard, FileText, ShieldCheck, ArrowRight, Shield, Download, Smartphone, X } from 'lucide-react'
+import { CheckCircle, Eye, EyeOff, Edit2, LogOut, CreditCard, FileText, ShieldCheck, ArrowRight, Shield, Download, Smartphone, X, MessageSquare, AlertTriangle } from 'lucide-react'
 import { useState } from 'react'
 import GlassCard from '../components/ui/GlassCard'
 import Badge from '../components/ui/Badge'
@@ -153,6 +153,8 @@ export default function Profile() {
           {[
             { icon: CreditCard, label: 'Payment Methods', to: '/dashboard/pay' },
             { icon: FileText, label: 'Lease Documents', to: '/dashboard/lease' },
+            { icon: AlertTriangle, label: 'Disputes', to: '/dashboard/disputes' },
+            { icon: MessageSquare, label: 'Ama AI Assistant', to: '/dashboard/agent' },
             { icon: ShieldCheck, label: 'Security & Privacy', to: '/settings' },
           ].map(({ icon: Icon, label, to }) => (
             <Link key={label} to={to} className="block">

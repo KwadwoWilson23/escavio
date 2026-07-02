@@ -18,6 +18,7 @@ import walletRoutes from './routes/wallet.js'
 import conversationRoutes from './routes/conversations.js'
 import reviewRoutes from './routes/reviews.js'
 import communityRoutes from './routes/community.js'
+import uploadRoutes from './routes/upload.js'
 // import ussdRoutes from './routes/ussd.js'
 import { startReminderSchedule } from './jobs/reminders.js'
 
@@ -96,6 +97,7 @@ app.use('/api/wallet', walletRoutes)
 app.use('/api/conversations', conversationRoutes)
 app.use('/api/reviews', reviewRoutes)
 app.use('/api/community', communityRoutes)
+app.use('/api/upload', uploadRoutes)
 // app.use('/api/ussd', ussdRoutes)
 
 app.get('/api/health', (req, res) => {

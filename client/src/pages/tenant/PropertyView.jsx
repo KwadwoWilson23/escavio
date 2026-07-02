@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Building2, MapPin, BedDouble, CheckCircle, Shield, Droplets, Zap, Car, ShieldCheck, Wifi, Wind, TreePine, Utensils, Loader2, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Building2, MapPin, BedDouble, CheckCircle, Shield, Droplets, Zap, Car, ShieldCheck, Wifi, Wind, TreePine, Utensils, Loader2, AlertCircle, MessageSquare, Phone, Star } from 'lucide-react'
 import { DetailSkeleton } from '../../components/ui/Skeleton'
 import GlassCard from '../../components/ui/GlassCard'
 import Badge from '../../components/ui/Badge'
@@ -142,6 +142,23 @@ export default function PropertyView() {
         </GlassCard>
       )}
 
+      {property.average_rating > 0 && (
+        <GlassCard>
+          <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Tenant Reviews</h3>
+          <div className="flex items-center gap-3">
+            <div className="text-center">
+              <p className="text-3xl font-bold text-primary">{property.average_rating?.toFixed(1)}</p>
+              <div className="flex items-center gap-0.5 mt-1">
+                {[1, 2, 3, 4, 5].map(s => (
+                  <Star key={s} size={12} className={s <= Math.round(property.average_rating) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'} />
+                ))}
+              </div>
+              <p className="text-[10px] text-text-dim mt-1">{property.review_count} review{property.review_count !== 1 ? 's' : ''}</p>
+            </div>
+          </div>
+        </GlassCard>
+      )}
+
       <GlassCard>
         <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Managed By</h3>
         <div className="flex items-center gap-3">
@@ -154,6 +171,27 @@ export default function PropertyView() {
               <CheckCircle size={10} /> Identity Verified
             </span>
           </div>
+        </div>
+        <div className="flex gap-2 mt-3 pt-3 border-t border-surface-border">
+          <button
+            onClick={async () => {
+              try {
+                const { data } = await api.post('/conversations', { property_id: id })
+                navigate(`/dashboard/messages/${data.id}`)
+              } catch (err) {
+                alert(err.response?.data?.error || 'Cannot start conversation')
+              }
+            }}
+            className="flex-1 btn-secondary flex items-center justify-center gap-2 text-sm py-2.5"
+          >
+            <MessageSquare size={16} /> Message
+          </button>
+          <button
+            onClick={() => alert('Calling is routed through Escavio. Your number is protected. This feature requires Africa\'s Talking setup.')}
+            className="flex-1 btn-ghost flex items-center justify-center gap-2 text-sm py-2.5 border border-surface-border"
+          >
+            <Phone size={16} /> Call
+          </button>
         </div>
       </GlassCard>
 

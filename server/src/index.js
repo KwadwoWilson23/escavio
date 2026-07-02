@@ -15,6 +15,9 @@ import whatsappRoutes from './routes/whatsapp.js'
 import notificationRoutes from './routes/notifications.js'
 import kycRoutes from './routes/kyc.js'
 import walletRoutes from './routes/wallet.js'
+import conversationRoutes from './routes/conversations.js'
+import reviewRoutes from './routes/reviews.js'
+import communityRoutes from './routes/community.js'
 // import ussdRoutes from './routes/ussd.js'
 import { startReminderSchedule } from './jobs/reminders.js'
 
@@ -90,6 +93,9 @@ app.use('/api/whatsapp', whatsappRoutes)
 app.use('/api/notifications', notificationRoutes)
 app.use('/api/kyc', kycRoutes)
 app.use('/api/wallet', walletRoutes)
+app.use('/api/conversations', conversationRoutes)
+app.use('/api/reviews', reviewRoutes)
+app.use('/api/community', communityRoutes)
 // app.use('/api/ussd', ussdRoutes)
 
 app.get('/api/health', (req, res) => {

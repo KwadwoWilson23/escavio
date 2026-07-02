@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Home, Wallet, FileText, Shield, User, Building2, ScrollText, Search, Bell, Settings, LogOut, MessageSquare } from 'lucide-react'
+import { Home, Wallet, FileText, Shield, User, Building2, ScrollText, Search, Bell, Settings, LogOut, MessageSquare, Users } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 
 const tenantLinks = [
@@ -7,14 +7,17 @@ const tenantLinks = [
   { to: '/dashboard/browse', icon: Search, label: 'Browse' },
   { to: '/dashboard/wallet', icon: Wallet, label: 'Wallet' },
   { to: '/dashboard/lease', icon: FileText, label: 'My Lease' },
-  { to: '/dashboard/pay', icon: Wallet, label: 'Pay Rent' },
+  { to: '/dashboard/messages', icon: MessageSquare, label: 'Messages' },
+  { to: '/dashboard/community', icon: Users, label: 'Community' },
 ]
 
 const landlordLinks = [
   { to: '/dashboard', icon: Home, label: 'Dashboard', end: true },
   { to: '/dashboard/properties', icon: Building2, label: 'Properties' },
   { to: '/dashboard/leases', icon: ScrollText, label: 'Leases' },
+  { to: '/dashboard/messages', icon: MessageSquare, label: 'Messages' },
   { to: '/dashboard/disputes', icon: Shield, label: 'Disputes' },
+  { to: '/dashboard/community', icon: Users, label: 'Community' },
 ]
 
 const bottomLinks = [

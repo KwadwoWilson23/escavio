@@ -1,20 +1,20 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Search, Wallet, FileText, User, Building2, ScrollText, Shield, Sparkles } from 'lucide-react'
+import { Home, Search, Wallet, User, Building2, ScrollText, MessageSquare, Users } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 
 const tenantLinks = [
   { to: '/dashboard', icon: Home, label: 'Home' },
   { to: '/dashboard/browse', icon: Search, label: 'Browse' },
-  { to: '/dashboard/agent', icon: Sparkles, label: 'Ama' },
-  { to: '/dashboard/wallet', icon: Wallet, label: 'Wallet' },
+  { to: '/dashboard/messages', icon: MessageSquare, label: 'Messages' },
+  { to: '/dashboard/community', icon: Users, label: 'Community' },
   { to: '/profile', icon: User, label: 'Profile' },
 ]
 
 const landlordLinks = [
   { to: '/dashboard', icon: Home, label: 'Home' },
   { to: '/dashboard/properties', icon: Building2, label: 'Properties' },
+  { to: '/dashboard/messages', icon: MessageSquare, label: 'Messages' },
   { to: '/dashboard/leases', icon: ScrollText, label: 'Leases' },
-  { to: '/dashboard/disputes', icon: Shield, label: 'Disputes' },
   { to: '/profile', icon: User, label: 'Profile' },
 ]
 

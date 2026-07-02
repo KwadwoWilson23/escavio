@@ -29,6 +29,10 @@ import Settings from './pages/Settings'
 import AgentChat from './pages/AgentChat'
 import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
+import Messages from './pages/Messages'
+import ChatRoom from './pages/ChatRoom'
+import Community from './pages/Community'
+import CommunityPost from './pages/CommunityPost'
 
 function NeedsPhone({ children }) {
   const { user } = useAuth()
@@ -84,6 +88,10 @@ export default function App() {
         <Route path="/dashboard/leases" element={<Leases />} />
         <Route path="/dashboard/leases/new" element={<CreateLease />} />
         <Route path="/dashboard/disputes" element={<Disputes />} />
+        <Route path="/dashboard/messages" element={<Messages />} />
+        <Route path="/dashboard/messages/:id" element={<ChatRoom />} />
+        <Route path="/dashboard/community" element={<Community />} />
+        <Route path="/dashboard/community/:id" element={<CommunityPost />} />
         <Route path="/dashboard/kyc" element={<KYCVerification />} />
         <Route path="/dashboard/agent" element={<AgentChat />} />
         <Route path="/notifications" element={<Notifications />} />

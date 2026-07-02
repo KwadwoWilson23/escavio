@@ -7,7 +7,10 @@ function stripXSS(str) {
 }
 
 function sanitizeValue(val) {
-  if (typeof val === 'string') return stripXSS(val)
+  if (typeof val === 'string') {
+    if (val.startsWith('data:') || val.startsWith('/9j/') || val.startsWith('iVBOR')) return val
+    return stripXSS(val)
+  }
   if (Array.isArray(val)) return val.map(sanitizeValue)
   if (val && typeof val === 'object') return sanitizeObject(val)
   return val

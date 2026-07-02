@@ -38,28 +38,45 @@ router.post('/', authenticate, requireRole('landlord'), async (req, res) => {
       return res.status(400).json({ error: 'Monthly rent must be between GHS 1 and GHS 1,000,000' })
     }
 
+    const insertData = {
+      landlord_id: req.user.id,
+      address: address.trim().slice(0, 500),
+      region: region.trim().slice(0, 100),
+      monthly_rent: Number(monthly_rent),
+      bedrooms: Math.min(Math.max(parseInt(bedrooms) || 1, 1), 50),
+      property_type: VALID_PROPERTY_TYPES.includes(property_type) ? property_type : 'apartment',
+      description: description ? String(description).slice(0, 500) : null,
+      amenities: Array.isArray(amenities) ? amenities.slice(0, 20).map(a => String(a).slice(0, 50)) : [],
+    }
+
+    if (image_url && typeof image_url === 'string' && image_url.length < 500000) {
+      insertData.image_url = image_url
+    }
+    if (Array.isArray(images) && images.length > 0) {
+      insertData.images = images.slice(0, 10)
+    }
+
     const { data, error } = await supabase
       .from('properties')
-      .insert({
-        landlord_id: req.user.id,
-        address: address.trim().slice(0, 500),
-        region: region.trim().slice(0, 100),
-        monthly_rent: Number(monthly_rent),
-        bedrooms: Math.min(Math.max(parseInt(bedrooms) || 1, 1), 50),
-        property_type: VALID_PROPERTY_TYPES.includes(property_type) ? property_type : 'apartment',
-        description: description ? String(description).slice(0, 500) : null,
-        amenities: Array.isArray(amenities) ? amenities.slice(0, 20).map(a => String(a).slice(0, 50)) : [],
-        image_url: image_url || null,
-        images: Array.isArray(images) ? images.slice(0, 10) : [],
-      })
+      .insert(insertData)
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('[Properties] Supabase insert error:', error.message, error.code, error.details)
+      if (error.message?.includes('images')) {
+        delete insertData.images
+        delete insertData.image_url
+        const retry = await supabase.from('properties').insert(insertData).select().single()
+        if (retry.error) throw retry.error
+        return res.status(201).json(retry.data)
+      }
+      throw error
+    }
     res.status(201).json(data)
   } catch (err) {
     console.error('[Properties] Create error:', err.message)
-    res.status(500).json({ error: 'Failed to create property' })
+    res.status(500).json({ error: err.message || 'Failed to create property' })
   }
 })
 
@@ -183,6 +200,52 @@ router.patch('/:id', authenticate, requireRole('landlord'), async (req, res) => 
     res.json(data)
   } catch (err) {
     res.status(500).json({ error: 'Failed to update property' })
+  }
+})
+
+router.delete('/:id', authenticate, requireRole('landlord'), async (req, res) => {
+  try {
+    if (!isValidUUID(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid property ID' })
+    }
+
+    const { data: property } = await supabase
+      .from('properties')
+      .select('id, status')
+      .eq('id', req.params.id)
+      .eq('landlord_id', req.user.id)
+      .single()
+
+    if (!property) {
+      return res.status(404).json({ error: 'Property not found' })
+    }
+
+    if (property.status === 'occupied') {
+      return res.status(400).json({ error: 'Cannot delete a property with an active tenant. End the lease first.' })
+    }
+
+    const { data: activeLeases } = await supabase
+      .from('leases')
+      .select('id')
+      .eq('property_id', req.params.id)
+      .in('status', ['active', 'pending', 'at_risk'])
+      .limit(1)
+
+    if (activeLeases && activeLeases.length > 0) {
+      return res.status(400).json({ error: 'Cannot delete a property with active or pending leases.' })
+    }
+
+    const { error } = await supabase
+      .from('properties')
+      .delete()
+      .eq('id', req.params.id)
+      .eq('landlord_id', req.user.id)
+
+    if (error) throw error
+    res.json({ message: 'Property deleted' })
+  } catch (err) {
+    console.error('[Properties] Delete error:', err.message)
+    res.status(500).json({ error: 'Failed to delete property' })
   }
 })
 

@@ -162,7 +162,7 @@ router.get('/property/:propertyId', authenticate, async (req, res) => {
 
     const { data: reviews, error } = await supabase
       .from('property_reviews')
-      .select('*, reviewer:users!property_reviews_reviewer_id_fkey(full_name), lease:leases!property_reviews_lease_id_fkey(tenant_id, landlord_id, property_id)')
+      .select('*, reviewer:users!reviewer_id(full_name), lease:leases!lease_id(tenant_id, landlord_id, property_id)')
       .eq('property_id', req.params.propertyId)
       .order('created_at', { ascending: false })
 
@@ -198,7 +198,7 @@ router.get('/tenant/:tenantId', authenticate, async (req, res) => {
 
     const { data: reviews, error } = await supabase
       .from('tenant_reviews')
-      .select('*, reviewer:users!tenant_reviews_reviewer_id_fkey(full_name), lease:leases!tenant_reviews_lease_id_fkey(tenant_id, landlord_id, property_id)')
+      .select('*, reviewer:users!reviewer_id(full_name), lease:leases!lease_id(tenant_id, landlord_id, property_id)')
       .eq('tenant_id', req.params.tenantId)
       .order('created_at', { ascending: false })
 

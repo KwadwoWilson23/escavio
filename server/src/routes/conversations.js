@@ -14,7 +14,7 @@ router.get('/', authenticate, async (req, res) => {
 
     const { data, error } = await supabase
       .from('conversations')
-      .select('*, property:properties(address, image_url), tenant:users!conversations_tenant_id_fkey(full_name), landlord:users!conversations_landlord_id_fkey(full_name)')
+      .select('*, property:properties(address, image_url), tenant:users!tenant_id(full_name), landlord:users!landlord_id(full_name)')
       .eq(col, userId)
       .order('last_message_at', { ascending: false })
 
@@ -36,7 +36,7 @@ router.post('/', authenticate, async (req, res) => {
 
     const { data: user } = await supabase
       .from('users')
-      .select('is_verified, communication_policy_accepted_at')
+      .select('is_verified')
       .eq('id', req.user.id)
       .single()
 
@@ -83,7 +83,7 @@ router.post('/', authenticate, async (req, res) => {
     if (error) throw error
     res.status(201).json(conv)
   } catch (err) {
-    console.error('[Conversations] Create error:', err.message)
+    console.error('[Conversations] Create error:', err.message, err.details || '', err.code || '')
     res.status(500).json({ error: 'Failed to create conversation' })
   }
 })
@@ -207,7 +207,7 @@ router.get('/:id', authenticate, async (req, res) => {
 
     const { data: conv, error } = await supabase
       .from('conversations')
-      .select('*, property:properties(address, image_url, images), tenant:users!conversations_tenant_id_fkey(full_name), landlord:users!conversations_landlord_id_fkey(full_name)')
+      .select('*, property:properties(address, image_url, images), tenant:users!tenant_id(full_name), landlord:users!landlord_id(full_name)')
       .eq('id', req.params.id)
       .single()
 

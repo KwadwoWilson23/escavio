@@ -10,7 +10,7 @@ router.get('/posts', authenticate, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('demand_posts')
-      .select('*, tenant:users!demand_posts_tenant_id_fkey(full_name)')
+      .select('*, tenant:users!tenant_id(full_name)')
       .eq('status', 'open')
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false })
@@ -73,7 +73,7 @@ router.post('/posts', authenticate, async (req, res) => {
         views_count: 0,
         expires_at: expiresAt.toISOString(),
       })
-      .select('*, tenant:users!demand_posts_tenant_id_fkey(full_name)')
+      .select('*, tenant:users!tenant_id(full_name)')
       .single()
 
     if (error) throw error
@@ -165,7 +165,7 @@ router.get('/posts/:id', authenticate, async (req, res) => {
 
     const { data: post, error } = await supabase
       .from('demand_posts')
-      .select('*, tenant:users!demand_posts_tenant_id_fkey(full_name)')
+      .select('*, tenant:users!tenant_id(full_name)')
       .eq('id', req.params.id)
       .single()
 
@@ -178,7 +178,7 @@ router.get('/posts/:id', authenticate, async (req, res) => {
 
     const { data: responses } = await supabase
       .from('demand_responses')
-      .select('*, landlord:users!demand_responses_landlord_id_fkey(full_name), property:properties(address, monthly_rent, bedrooms, image_url, images)')
+      .select('*, landlord:users!landlord_id(full_name), property:properties(address, monthly_rent, bedrooms, image_url, images)')
       .eq('demand_post_id', req.params.id)
       .order('created_at', { ascending: false })
 
